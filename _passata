@@ -1,0 +1,99 @@
+#compdef passata
+
+_passata() {
+  local curcontext="$curcontext" state line
+  typeset -A opt_args
+
+  _arguments : \
+    '--config[Path of the configuration file]:file:_files' \
+    '--version[Show the version and exit]' \
+    '--help[Show help message and exit]' \
+    ':command:->command' \
+    '*::options:->options'
+
+  case $state in
+    command)
+      local -a subcommands
+      subcommands=(
+        'init:Initialize password database'
+        'ls:List entries in a tree-like format'
+        'show:Decrypt and print entry'
+        'insert:Insert a new password'
+        'generate:Generate a random password'
+        'edit:Edit entry, group or the whole database'
+        'rm:Remove entries or groups'
+        'mv:Move or rename entries.'
+        'autotype:Type login credentials'
+      )
+      _describe -t commands 'command' subcommands
+      ;;
+
+    options)
+      case $line[1] in
+        init)
+          # -s enables option stacking for single-letter options
+          _arguments -s : \
+            '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
+            '(-g --gpg-id)'{-g,--gpg-id}'[GnuPG ID for database encryption]:gpg key:_complete_keys' \
+            '(-p --path)'{-p,--path}'[Database path]:file:_files'
+          ;;
+
+        ls)
+          _arguments -s : \
+            '(-n --no-tree)'{-n,--no-tree}'[Print entries in <group>/<name> format]'
+          _complete_groups
+          ;;
+
+        show)
+          _arguments -s : \
+            '(-c --clipboard)'{-c,--clipboard}'[Copy password to clipboard instead of printing]'
+          _complete_entries
+          ;;
+
+        insert)
+          _arguments -s : \
+            '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
+            '--password[Give password instead of being prompted for it]'
+          _complete_entries
+          ;;
+
+        generate)
+          _arguments -s : \
+            '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
+            '(-c --clipboard)'{-c,--clipboard}'[Copy password to clipboard instead of printing]' \
+            '(-l --length)'{-l,--length}'[Length of the generated password]' \
+            '(--symbols --no-symbols)--symbols[Use symbols in the generated password]' \
+            '(--symbols --no-symbols)--no-symbols[Do not use symbols in the generated password]'
+          _complete_entries
+          ;;
+
+        edit)
+          _complete_entries
+          ;;
+
+        rm|mv)
+          _arguments -s : \
+            '(-f --force)'{-f,--force}'[Do not prompt for confirmation]'
+          _complete_entries
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_complete_groups() {
+  local IFS=$'\n'
+  _values 'group' ${$(passata ls 2>/dev/null | grep "^\w"):-""}
+}
+
+_complete_entries() {
+  local IFS=$'\n'
+  _values 'entry' ${$(passata ls --no-tree 2>/dev/null):-""}
+}
+
+_complete_keys() {
+  local IFS=$'\n'
+  _values 'gpg key' ${$(gpg --list-secret-keys | grep -o "<.*>" | tr -d "<>"):-""}
+}
+
+_passata
