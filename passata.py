@@ -19,7 +19,9 @@
 
 import fcntl
 import os
+import random
 import re
+import string
 import subprocess
 import sys
 import time
@@ -106,11 +108,13 @@ def to_clipboard(string, loops=0):
 
 
 def generate_password(length, symbols):
-    """Generate a random password using pwgen."""
-    command = ['pwgen', '-s', str(length), '1']
+    """Generate a random password."""
+    choice = random.SystemRandom().choice
+    chargroups = [string.ascii_letters, string.digits]
     if symbols:
-        command.insert(2, '-y')
-    password = out(command).strip()
+        chargroups.append(string.punctuation)
+    chars = ''.join(chargroups)
+    password = ''.join(choice(chars) for i in range(length))
     return password
 
 
