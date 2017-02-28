@@ -306,7 +306,7 @@ def pop(db, name, force=False):
 def cli(ctx, config):
     """A simple password manager, inspired by pass."""
     ctx.obj = {
-        '_confpath': config,
+        '_confpath': os.path.abspath(os.path.expanduser(config)),
         'editor': os.environ.get('EDITOR', 'vim'),
         'font': None,
         'length': 20,
