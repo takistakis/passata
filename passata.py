@@ -247,8 +247,8 @@ def put(db, name, subdict):
 
     # Put the whole database
     if not groupname:
-        # It has the same effect as `db = subdict` but we want db to reference
-        # the same object for testing purposes.
+        # `db = subdict` wouldn't work because it makes a local copy
+        # of `subdict` and the `db` dict of the caller stays the same.
         db.clear()
         db.update(subdict)
 
