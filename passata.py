@@ -84,14 +84,15 @@ def xdie(message):
     sys.exit(1)
 
 
-def acquire_lock():
+def lock_file(path):
     """Open a file and lock it.
 
-    That way we can assure that only one passata process that is executing a
-    database modifying command, can be running at a time. Read-only commands
-    should not acquire the lock.
+    By locking the database, we can assure that only one passata
+    process that is executing a database modifying command, can be
+    running at a time. Read-only commands should not acquire the lock.
     """
-    lock = open('/tmp/passata.lock', 'w')
+    # Open with 'a' (i.e. append) to prevent truncation
+    lock = open(path, 'a')
     try:
         fcntl.lockf(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except IOError:
@@ -200,12 +201,14 @@ def decrypt(path):
     return out(['gpg', '-d', path])
 
 
-def read_db():
+def read_db(lock=False):
     """Return the database as a plaintext string."""
     dbpath = option('database')
     dbpath = os.path.expanduser(dbpath)
     if not os.path.isfile(dbpath):
         die("Database file (%s) does not exist" % dbpath)
+    if lock:
+        lock_file(dbpath)
     data = decrypt(dbpath)
     return to_dict(data)
 
@@ -338,8 +341,8 @@ def cli(ctx, config):
 @click.pass_obj
 def init(obj, force, gpg_id, path):
     """Initialize password database."""
-    acquire_lock()
     dbpath = os.path.abspath(os.path.expanduser(path))
+    lock_file(dbpath)
     confpath = obj['_confpath']
     if os.path.isfile(confpath):
         confirm("Overwrite %s?" % confpath, force)
@@ -427,7 +430,7 @@ def do_insert(name, password, force):
     """
     if isgroup(name):
         die("%s is a group" % name)
-    db = read_db()
+    db = read_db(lock=True)
     entry = get(db, name)
     if entry is None:
         put(db, name, {'password': password})
@@ -451,7 +454,6 @@ def insert(name, force, password):
     When overwriting an existing entry, the old password is kept in
     <password_old>.
     """
-    acquire_lock()
     do_insert(name, password, force)
 
 
@@ -474,7 +476,6 @@ def generate(name, force, clipboard, length, symbols):
     <password_old>. If --clipboard is specified, the password will stay in the
     clipboard until it is pasted twice.
     """
-    acquire_lock()
     password = generate_password(length, symbols)
     if name:
         do_insert(name, password, force)
@@ -488,8 +489,7 @@ def generate(name, force, clipboard, length, symbols):
 @click.argument('name', required=False)
 def edit(name):
     """Edit entry, group or the whole database."""
-    acquire_lock()
-    db = read_db()
+    db = read_db(lock=True)
     subdict = get(db, name) or {}
     original = to_string(subdict)
     # Describe what is being edited in a comment at the top
@@ -509,8 +509,7 @@ def edit(name):
               help="Do not prompt for confirmation.")
 def rm(names, force):
     """Remove entries or groups."""
-    acquire_lock()
-    db = read_db()
+    db = read_db(lock=True)
     if len(names) == 1:
         if pop(db, names[0], force) is None:
             die("%s not found" % names[0])
@@ -533,8 +532,7 @@ def rm(names, force):
               help="Do not prompt for confirmation.")
 def mv(source, dest, force):
     """Rename SOURCE to DEST or move SOURCE(s) to GROUP."""
-    acquire_lock()
-    db = read_db()
+    db = read_db(lock=True)
     if len(source) > 1 and not isgroup(dest):
         die("%s is not a group" % dest)
 
