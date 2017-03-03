@@ -1,25 +1,42 @@
+import os
+
 import click
+import click.testing
 import pytest
-from click.testing import CliRunner
 
 import passata
 
 
 @pytest.fixture
-def db(monkeypatch):
-    db = {'internet': {'facebook': {'username': 'sakis',
-                                    'password': 'fb'},
-                       'github': {'username': 'takis',
-                                  'password': 'gh'}}}
-    monkeypatch.setattr(passata, 'read_db', lambda: db)
-    monkeypatch.setattr(passata, 'write_db', lambda db: None)
-    monkeypatch.setattr(passata, 'read_config', lambda:
-                        {'database': 'db', 'gpg_id': 'id'})
-    yield db
+def db(tmpdir, monkeypatch):
+    monkeypatch.setattr(passata, 'encrypt', lambda x: x)
+    monkeypatch.setattr(passata, 'decrypt', lambda x: open(x).read())
+
+    confpath = tmpdir.join('config.yml')
+    dbpath = tmpdir.join('passata.db')
+
+    confpath.write('database: %s\n'
+                   'gpg_id: id\n' % dbpath)
+
+    dbpath.write('internet:\n'
+                 '  facebook:\n'
+                 '    password: fb\n'
+                 '    username: sakis\n'
+                 '  github:\n'
+                 '    password: gh\n'
+                 '    username: takis\n')
+
+    os.environ['PASSATA_CONFIG_PATH'] = str(confpath)
+
+    yield dbpath
+
+
+def read(dbpath):
+    return open(dbpath).read()
 
 
 def run(args):
-    runner = CliRunner()
+    runner = click.testing.CliRunner()
     return runner.invoke(passata.cli, args)
 
 
@@ -28,10 +45,20 @@ def clipboard():
     return passata.out(command)
 
 
-def test_init(tmpdir):
-    tempdir = tmpdir.mkdir('passata')
-    confpath = tempdir.join('config.yml')
-    dbpath = tempdir.join('passata.db')
+def test_init(tmpdir, monkeypatch):
+    monkeypatch.setattr(passata, 'encrypt', lambda x: x)
+    monkeypatch.setattr(passata, 'decrypt', lambda x: open(x).read())
+
+    confpath = tmpdir.join('config.yml')
+    dbpath = tmpdir.join('passata.db')
+
+    # Try to execute a command without having initialized passata
+    result = run(['--config', confpath, 'ls'])
+    assert repr(result.exception) == 'SystemExit(1,)'
+    assert result.output == "Run `passata init` first\n"
+
+    # Initialize
+    result = run(['--config', confpath, 'ls'])
     email = 'mail@mail.com'
     run(['--config=%s' % confpath, 'init',
          '--gpg-id=%s' % email, '--path=%s' % dbpath])
@@ -39,23 +66,39 @@ def test_init(tmpdir):
     assert 'database: %s' % dbpath in contents
     assert 'gpg_id: %s' % email in contents
 
+    # Try again and now it should work
+    result = run(['--config', confpath, 'ls'])
+    assert result.output == ''
+
+    # Try again after deleting the database and it should fail
+    os.unlink(dbpath)
+    result = run(['--config', confpath, 'ls'])
+    assert repr(result.exception) == 'SystemExit(1,)'
+    assert result.output == "Database file (%s) does not exist\n" % dbpath
+
 
 def test_ls(db):
     # List all
     result = run(['ls'])
-    assert result.output == ('internet\n'
-                             '├── facebook\n'
-                             '└── github\n')
+    assert result.output == (
+        'internet\n'
+        '├── facebook\n'
+        '└── github\n'
+    )
 
     # List group
     result = run(['ls', 'internet'])
-    assert result.output == ('facebook\n'
-                             'github\n')
+    assert result.output == (
+        'facebook\n'
+        'github\n'
+    )
 
     # --no-tree
     result = run(['ls', '--no-tree'])
-    assert result.output == ('internet/facebook\n'
-                             'internet/github\n')
+    assert result.output == (
+        'internet/facebook\n'
+        'internet/github\n'
+    )
 
     # Nonexistent group
     result = run(['ls', 'nonexistent'])
@@ -65,14 +108,17 @@ def test_ls(db):
 def test_show(db):
     # Normal show
     result = run(['show', 'internet/github'])
-    assert result.output == ('password: gh\n'
-                             'username: takis\n')
+    assert result.output == (
+        'password: gh\n'
+        'username: takis\n'
+    )
 
-    # Show nonexistent entry
+    # Try to show a nonexistent entry
     result = run(['show', 'internet/nonexistent'])
     assert repr(result.exception) == 'SystemExit(1,)'
+    assert result.output == "internet/nonexistent not found\n"
 
-    # Show entry three levels deep
+    # Try to show an entry three levels deep
     result = run(['show', 'one/two/three'])
     assert repr(result.exception) == 'SystemExit(1,)'
 
@@ -80,20 +126,23 @@ def test_show(db):
     result = run(['show', 'internet/github', '--clipboard'])
     assert result.output == ''
     assert clipboard() == 'gh'
+    # Should be gone after being pasted
     with pytest.raises(SystemExit):
         clipboard()
 
-    # Try to put to clipboard a whole group
+    # Try to put a whole group to clipboard
     result = run(['show', 'internet', '--clipboard'])
     assert repr(result.exception) == 'SystemExit(1,)'
 
     # Show group
-    expected = ('facebook:\n'
-                '  password: fb\n'
-                '  username: sakis\n'
-                'github:\n'
-                '  password: gh\n'
-                '  username: takis\n')
+    expected = (
+        'facebook:\n'
+        '  password: fb\n'
+        '  username: sakis\n'
+        'github:\n'
+        '  password: gh\n'
+        '  username: takis\n'
+    )
     result = run(['show', 'internet'])
     assert result.output == expected
 
@@ -102,43 +151,71 @@ def test_show(db):
     assert result.output == expected
 
 
-def test_do_insert(monkeypatch, db):
+def test_insert(monkeypatch, db):
     monkeypatch.setattr(click, 'confirm', lambda m: confirm)
 
     # Try to insert group
-    with pytest.raises(SystemExit):
-        passata.do_insert('group', force=True, password='...')
+    result = run(['insert', 'group', '--password=...'])
+    assert repr(result.exception) == 'SystemExit(1,)'
 
     # Insert entry
-    passata.do_insert('group/test', force=True, password='one')
-    assert db['group']['test']['password'] == 'one'
+    run(['insert', 'group/test', '--password=one'])
+    assert read(db) == (
+        'group:\n'
+        '  test:\n'
+        '    password: one\n'
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
     # Force update
-    passata.do_insert('group/test', force=True, password='two')
-    assert db['group']['test']['password'] == 'two'
-    assert db['group']['test']['password_old'] == 'one'
+    run(['insert', 'group/test', '--force', '--password=two'])
+    assert read(db) == (
+        'group:\n'
+        '  test:\n'
+        '    password: two\n'
+        '    password_old: one\n'
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
     # Confirm update
     confirm = True
-    passata.do_insert('group/test', force=False, password='three')
-    assert db['group']['test']['password'] == 'three'
-    assert db['group']['test']['password_old'] == 'two'
+    run(['insert', 'group/test', '--password=three'])
+    assert read(db) == (
+        'group:\n'
+        '  test:\n'
+        '    password: three\n'
+        '    password_old: two\n'
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
     # Do not confirm update
     confirm = False
-    with pytest.raises(SystemExit):
-        passata.do_insert('group/test', force=False, password='four')
-
-
-def test_insert(monkeypatch, db):
-    run(['insert', 'group/test', '--force', '--password=password'])
-    assert db['group']['test']['password'] == 'password'
+    result = run(['insert', 'group', '--password=four'])
+    assert repr(result.exception) == 'SystemExit(1,)'
 
 
 def test_generate(monkeypatch, db):
     monkeypatch.setattr(passata, 'generate_password', lambda l, s: l * 'x')
 
-    # Too short length
+    # Too short
     result = run(['generate', '--length=2'])
     assert result.exit_code == 2
     assert 'Error' in result.output
@@ -154,6 +231,7 @@ def test_generate(monkeypatch, db):
     assert result.output == ''
     assert clipboard() == 'xxxxx'
     assert clipboard() == 'xxxxx'
+    # Should be gone after being pasted twice
     with pytest.raises(SystemExit):
         clipboard()
 
@@ -162,36 +240,99 @@ def test_edit_entry(monkeypatch, db):
     monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
     monkeypatch.setattr(click, 'confirm', lambda m: confirm)
 
-    updated = ('username: takis\n'
-               'password: secret\n')
+    updated = (
+        'username: takis\n'
+        'password: secret\n'
+    )
     run(['edit', 'internet/reddit'])
-    assert db['internet']['reddit']['password'] == 'secret'
+    assert read(db) == (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+        '  reddit:\n'
+        '    password: secret\n'
+        '    username: takis\n'
+    )
 
     updated = ''
     confirm = True
     run(['edit', 'internet/reddit'])
-    assert 'reddit' not in db['internet']
+    assert read(db) == (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
-    updated = ('username: sakis\n'
-               'password: yolo\n')
+    updated = (
+        'username: sakis\n'
+        'password: yolo\n'
+    )
     run(['edit', 'mail/gmail'])
-    assert db['mail']['gmail']['password'] == 'yolo'
+    assert read(db) == (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+        'mail:\n'
+        '  gmail:\n'
+        '    password: yolo\n'
+        '    username: sakis\n'
+    )
 
     updated = ''
     confirm = False
     run(['edit', 'mail/gmail'])
-    assert db['mail']['gmail']['password'] == 'yolo'
+    assert read(db) == (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+        'mail:\n'
+        '  gmail:\n'
+        '    password: yolo\n'
+        '    username: sakis\n'
+    )
 
     updated = ''
     confirm = True
     run(['edit', 'mail/gmail'])
-    assert 'mail' not in db
+    assert read(db) == (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
     # Cover the possibility of leaving empty an already empty entry
     updated = ''
     confirm = True
     run(['edit', 'asdf/asdf'])
-    assert 'asdf' not in db
+    assert read(db) == (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
 
 def test_edit_group(monkeypatch, db):
@@ -201,58 +342,76 @@ def test_edit_group(monkeypatch, db):
     updated = ''
     confirm = False
     run(['edit', 'internet'])
-    assert 'internet' in db
+    assert read(db) == (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
     updated = ''
     confirm = True
     run(['edit', 'internet'])
-    assert 'internet' not in db
+    assert read(db) == ''
 
     # Cover the possibility of leaving empty an already empty group
     updated = ''
     confirm = True
     run(['edit', 'asdf'])
-    assert 'asdf' not in db
+    assert read(db) == ''
 
-    updated = ('facebook:\n'
-               '  username: takis\n'
-               '  password: secret\n')
+    updated = (
+        'facebook:\n'
+        '  username: takis\n'
+        '  password: secret\n'
+    )
     run(['edit', 'internet'])
-    assert db == {'internet': {'facebook': {'username': 'takis',
-                                            'password': 'secret'}}}
+    assert read(db) == (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: secret\n'
+        '    username: takis\n'
+    )
 
 
 def test_edit_database(monkeypatch, db):
     monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
     monkeypatch.setattr(click, 'confirm', lambda m: confirm)
 
-    updated = ('internet:\n'
-               '  facebook:\n'
-               '    username: sakis\n'
-               '    password: fb\n')
-
+    updated = (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+    )
     confirm = True
     run(['edit'])
-    assert db == {'internet': {'facebook': {'username': 'sakis',
-                                            'password': 'fb'}}}
+    assert read(db) == updated
 
-    copy = db.copy()
+    original = read(db)
     updated = ''
     confirm = False
     run(['edit'])
-    assert db == copy
+    assert read(db) == original
 
     updated = ''
     confirm = True
     run(['edit'])
-    assert db == {}
+    assert read(db) == ''
 
 
 def test_rm_entry(monkeypatch, db):
     # Normal removal
     run(['rm', '--force', 'internet/facebook'])
-    assert db == {'internet': {'github': {'username': 'takis',
-                                          'password': 'gh'}}}
+    assert read(db) == (
+        'internet:\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
     # Remove nonexistent entry
     result = run(['rm', 'internet/nonexistent'])
@@ -261,16 +420,21 @@ def test_rm_entry(monkeypatch, db):
     # Do not confirm removal
     monkeypatch.setattr(click, 'confirm', lambda m: False)
     run(['rm', 'internet/github'])
-    assert 'github' in db['internet']
+    assert read(db) == (
+        'internet:\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
     # Remove last entry
     run(['rm', '--force', 'internet/github'])
-    assert db == {}
+    assert read(db) == ''
 
 
 def test_rm_entries(db):
     run(['rm', '--force', 'internet/facebook', 'internet/github'])
-    assert db == {}
+    assert read(db) == ''
 
     result = run(['rm', '--force', 'asdf/asdf', 'asdf/asdf2'])
     assert repr(result.exception) == 'SystemExit(1,)'
@@ -281,23 +445,34 @@ def test_rm_group(db):
     assert repr(result.exception) == 'SystemExit(1,)'
 
     run(['rm', '--force', 'internet'])
-    assert db == {}
+    assert read(db) == ''
 
 
 def test_mv_entry_to_entry(db):
     run(['mv', 'internet/facebook', 'internet/fb'])
-    assert db == {'internet': {'fb': {'username': 'sakis',
-                                      'password': 'fb'},
-                               'github': {'username': 'takis',
-                                          'password': 'gh'}}}
+    assert read(db) == (
+        'internet:\n'
+        '  fb:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
 
 def test_mv_entry_to_group(db):
     run(['mv', 'internet/facebook', 'new'])
-    assert db == {'new': {'facebook': {'username': 'sakis',
-                                       'password': 'fb'}},
-                  'internet': {'github': {'username': 'takis',
-                                          'password': 'gh'}}}
+    assert read(db) == (
+        'internet:\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+        'new:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+    )
 
 
 def test_mv_entries_to_entry(db):
@@ -307,15 +482,45 @@ def test_mv_entries_to_entry(db):
 
 def test_mv_entries_to_group(db):
     run(['mv', 'internet/facebook', 'internet/github', 'new'])
-    assert db == {'new': {'facebook': {'username': 'sakis',
-                                       'password': 'fb'},
-                  'github': {'username': 'takis',
-                             'password': 'gh'}}}
+    assert read(db) == (
+        'new:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
 
 def test_mv_nonexistent_entry(db):
     result = run(['mv', 'internet/nonexistent', 'group'])
     assert repr(result.exception) == 'SystemExit(1,)'
+
+
+def test_mv_overwrite(monkeypatch, db):
+    monkeypatch.setattr(click, 'confirm', lambda m: confirm)
+
+    confirm = False
+    run(['mv', 'internet/facebook', 'internet/github'])
+    assert read(db) == (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
+
+    confirm = True
+    run(['mv', 'internet/facebook', 'internet/github'])
+    assert read(db) == (
+        'internet:\n'
+        '  github:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+    )
 
 
 def test_get_autotype(monkeypatch):
