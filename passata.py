@@ -195,14 +195,25 @@ def default_gpg_id():
 
 
 # Database
+def decrypt(path):
+    """Decrypt the contents of the given file using gpg."""
+    return out(['gpg', '-d', path])
+
+
 def read_db():
     """Return the database as a plaintext string."""
     dbpath = option('database')
     dbpath = os.path.expanduser(dbpath)
     if not os.path.isfile(dbpath):
         die("Database file (%s) does not exist" % dbpath)
-    data = out(['gpg', '-d', dbpath])
+    data = decrypt(dbpath)
     return to_dict(data)
+
+
+def encrypt(data):
+    """Encrypt given text using gpg."""
+    gpg_id = option('gpg_id')
+    return out(['gpg', '-ear', gpg_id], input=data)
 
 
 def write_db(db, force=True):
@@ -211,8 +222,7 @@ def write_db(db, force=True):
     if os.path.isfile(dbpath):
         confirm("Overwrite %s?" % dbpath, force)
     data = to_string(db)
-    gpg_id = option('gpg_id')
-    encrypted = out(['gpg', '-ear', gpg_id], input=data)
+    encrypted = encrypt(data)
     with open(dbpath, 'w') as f:
         f.write(encrypted)
 
@@ -299,7 +309,7 @@ def pop(db, name, force=False):
 # Commands
 @click.group()
 @click.option('--config', type=click.Path(dir_okay=False),
-              default=default_config_path,
+              default=default_config_path, envvar='PASSATA_CONFIG_PATH',
               help="Path of the configuration file.")
 @click.version_option(version=__version__)
 @click.pass_context
