@@ -140,7 +140,7 @@ def split(name):
         try:
             groupname, entryname = name.split('/')
         except ValueError:
-            die("Too much nesting")
+            die("%s is nested too deeply" % name)
 
     return groupname, entryname
 
