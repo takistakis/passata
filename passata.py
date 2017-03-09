@@ -181,13 +181,6 @@ def option(key):
     return config[key]
 
 
-def default_config_path():
-    """Return the the default configuration path."""
-    confdir = click.get_app_dir('passata')
-    confpath = os.path.join(confdir, 'config.yml')
-    return os.path.expanduser(confpath)
-
-
 def default_gpg_id():
     """Return the id of the first gpg secret key."""
     command = ['gpg', '--list-secret-keys']
@@ -312,7 +305,8 @@ def pop(db, name, force=False):
 # Commands
 @click.group()
 @click.option('--config', type=click.Path(dir_okay=False),
-              default=default_config_path, envvar='PASSATA_CONFIG_PATH',
+              default=os.path.join(click.get_app_dir('passata'), 'config.yml'),
+              envvar='PASSATA_CONFIG_PATH',
               help="Path of the configuration file.")
 @click.version_option(version=__version__)
 @click.pass_context
