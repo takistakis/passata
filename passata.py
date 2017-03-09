@@ -160,17 +160,22 @@ def to_string(data):
 
 
 # Config
-def read_config():
+def read_config(confpath):
     """Read the configuration file and return it as a dict."""
-    config = click.get_current_context().obj
-    confpath = config['_confpath']
+    config = {
+        'editor': os.environ.get('EDITOR', 'vim'),
+        'font': None,
+        'length': 20,
+        'symbols': True,
+    }
     try:
         with open(confpath) as f:
             data = f.read()
     except FileNotFoundError:
         die("Run `passata init` first")
 
-    return to_dict(data)
+    config.update(to_dict(data))
+    return config
 
 
 def option(key):
@@ -312,17 +317,10 @@ def pop(db, name, force=False):
 @click.pass_context
 def cli(ctx, config):
     """A simple password manager, inspired by pass."""
-    ctx.obj = {
-        '_confpath': os.path.abspath(os.path.expanduser(config)),
-        'editor': os.environ.get('EDITOR', 'vim'),
-        'font': None,
-        'length': 20,
-        'symbols': True,
-    }
-
+    ctx.obj = {'_confpath': os.path.abspath(os.path.expanduser(config))}
     # When init is invoked there isn't supposed to be a config file yet
     if ctx.invoked_subcommand != 'init':
-        ctx.obj.update(read_config())
+        ctx.obj.update(read_config(config))
 
 
 @cli.command()
