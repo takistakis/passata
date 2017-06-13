@@ -167,6 +167,7 @@ def read_config(confpath):
         'font': None,
         'length': 20,
         'symbols': True,
+        'color': True,
     }
     try:
         with open(confpath) as f:
@@ -351,6 +352,7 @@ def init(obj, force, gpg_id, path):
         "# length: Default length of generated passwords [default: 20]\n"
         "# symbols: Whether to use symbols in the generated password "
         "[default: true]\n"
+        "# color: Whether to colorize the output [default: true]\n"
         "%s"
     )
 
@@ -369,8 +371,11 @@ def init(obj, force, gpg_id, path):
 @cli.command()
 @click.option('-n', '--no-tree', is_flag=True,
               help="Print entries in 'groupname/entryname' format.")
+@click.option('--color/--no-color', is_flag=True,
+              default=lambda: option('color'),
+              help="Whether to colorize the output.")
 @click.argument('group', required=False)
-def ls(group, no_tree):
+def ls(group, no_tree, color):
     """List entries in a tree-like format."""
     db = read_db()
     if group:
@@ -385,7 +390,10 @@ def ls(group, no_tree):
                 click.echo("%s/%s" % (groupname, entryname))
     else:
         for groupname in sorted(db):
-            click.secho(groupname, fg='blue', bold=True)
+            if color:
+                click.secho(groupname, fg='blue', bold=True)
+            else:
+                click.echo(groupname)
             grouplist = sorted(db[groupname])
             for entryname in grouplist[:-1]:
                 click.echo("├── %s" % entryname)
@@ -395,8 +403,11 @@ def ls(group, no_tree):
 @cli.command()
 @click.option('-c', '--clipboard', is_flag=True,
               help="Copy password to clipboard instead of printing.")
+@click.option('--color/--no-color', is_flag=True,
+              default=lambda: option('color'),
+              help="Whether to colorize the output.")
 @click.argument('name')
-def show(name, clipboard):
+def show(name, clipboard, color):
     """Decrypt and print entry.
 
     If NAME is a group, print all entries in that group. If --clipboard is
@@ -412,7 +423,16 @@ def show(name, clipboard):
             die("Can't put the entire group to clipboard")
         to_clipboard(entry['password'], loops=1)
     else:
-        click.echo(to_string(entry).strip())
+        string = to_string(entry).strip()
+        if color:
+            # Bright blue key (color 12) and bright yellow colon (color 11).
+            # Colors are applied manually using ANSI escape codes because
+            # click.style does not support bright colors. The key ends at the
+            # first colon that is followed by either a space or a newline.
+            string = re.sub(r'(^\s*.*?):(\s)',
+                            r'\033[38;5;12m\1\033[38;5;11m:\033[0m\2',
+                            string, flags=re.MULTILINE)
+        click.echo(string)
 
 
 def do_insert(name, password, force):
