@@ -40,13 +40,17 @@ _passata() {
 
         ls)
           _arguments -s : \
-            '(-n --no-tree)'{-n,--no-tree}'[Print entries in <group>/<name> format]'
+            '(-n --no-tree)'{-n,--no-tree}'[Print entries in <group>/<name> format]' \
+            '(--color --no-color)--color[Colorize the output]' \
+            '(--color --no-color)--no-color[Do not colorize the output]'
           _complete_groups
           ;;
 
         show)
           _arguments -s : \
-            '(-c --clipboard)'{-c,--clipboard}'[Copy password to clipboard instead of printing]'
+            '(-c --clipboard)'{-c,--clipboard}'[Copy password to clipboard instead of printing]' \
+            '(--color --no-color)--color[Colorize the output]' \
+            '(--color --no-color)--no-color[Do not colorize the output]'
           _complete_entries
           ;;
 
