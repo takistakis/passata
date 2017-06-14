@@ -24,6 +24,7 @@ import re
 import string
 import subprocess
 import sys
+import tempfile
 import time
 
 import click
@@ -225,8 +226,17 @@ def write_db(db, force=True):
         confirm("Overwrite %s?" % dbpath, force)
     data = to_string(db)
     encrypted = encrypt(data)
-    with open(dbpath, 'w') as f:
-        f.write(encrypted)
+    # Write to a temporary file, make sure the data has reached the
+    # disk and replace the database with the temporary file using
+    # os.replace() which is guaranteed to be an atomic operation.
+    fd = tempfile.NamedTemporaryFile(
+        mode='w', dir=os.path.dirname(dbpath), delete=False)
+    fd.write(encrypted)
+    fd.flush()
+    os.fsync(fd.fileno())
+    fd.close()
+    os.replace(fd.name, dbpath)
+    # Here the lock on the database is released
 
 
 def get(db, name):
