@@ -103,10 +103,10 @@ def lock_file(path):
     click.get_current_context().obj['_lock'] = lock
 
 
-def to_clipboard(string, loops=0):
-    """Add `string` to clipbord until pasted `loops` times."""
+def to_clipboard(data, loops=0):
+    """Add `data` to clipbord until pasted `loops` times."""
     command = ['xclip', '-selection', 'clipboard', '-loops', str(loops)]
-    call(command, input=string)
+    call(command, input=data)
 
 
 def generate_password(length, symbols):
@@ -433,16 +433,16 @@ def show(name, clipboard, color):
             die("Can't put the entire group to clipboard")
         to_clipboard(entry['password'], loops=1)
     else:
-        string = to_string(entry).strip()
+        data = to_string(entry).strip()
         if color:
             # Bright blue key (color 12) and bright yellow colon (color 11).
             # Colors are applied manually using ANSI escape codes because
             # click.style does not support bright colors. The key ends at the
             # first colon that is followed by either a space or a newline.
-            string = re.sub(r'(^\s*.*?):(\s)',
-                            r'\033[38;5;12m\1\033[38;5;11m:\033[0m\2',
-                            string, flags=re.MULTILINE)
-        click.echo(string)
+            data = re.sub(r'(^\s*.*?):(\s)',
+                          r'\033[38;5;12m\1\033[38;5;11m:\033[0m\2',
+                          data, flags=re.MULTILINE)
+        click.echo(data)
 
 
 def do_insert(name, password, force):
@@ -597,16 +597,16 @@ def keyboard(key, entry):
 
 def get_autotype(entry):
     """Return a list with the items that need to be typed."""
-    string = entry.get('autotype')
-    if not string:
+    data = entry.get('autotype')
+    if not data:
         if entry.get('username') and entry.get('password'):
-            string = '<username> Tab <password> Return'
+            data = '<username> Tab <password> Return'
         elif entry.get('password'):
-            string = '<password> Return'
+            data = '<password> Return'
         else:
             xdie("Don't know what to type :(")
 
-    return string.split()
+    return data.split()
 
 
 @cli.command()
@@ -642,4 +642,4 @@ def autotype():
 
 
 if __name__ == '__main__':
-    cli()
+    cli()  # pylint: disable=no-value-for-parameter

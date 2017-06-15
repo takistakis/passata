@@ -49,4 +49,4 @@ def import_csv(ctx, config, file):
 
 
 if __name__ == '__main__':
-    import_csv()
+    import_csv()  # pylint: disable=no-value-for-parameter
