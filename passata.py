@@ -37,30 +37,23 @@ __version__ = '0.1.0'
 def call(command, stdout=None, input=None):
     """Run command, optionally passing `input` to stdin.
 
-    By default, standard output is printed and ignored and None is return.
+    By default, standard output is printed and ignored and None is returned.
     Setting stdout=subprocess.PIPE, will capture and return standard output
     instead.
     """
-    # This could be achieved more easily with subprocess.run(), but it is
-    # available since python 3.5 and we want to keep compatibility with at
-    # least Debian stable which is currently on version 3.4.
-    kwargs = {
-        'stdin': subprocess.PIPE if input is not None else None,
-        'stdout': stdout,
-        'stderr': subprocess.DEVNULL,
-        'universal_newlines': True
-    }
     try:
-        with subprocess.Popen(command, **kwargs) as process:
-            output = process.communicate(input)[0]
-            retcode = process.poll()
-            if retcode != 0:
-                message = "Command '%s' returned non-zero exit status %d"
-                die(message % (' '.join(command), retcode))
+        return subprocess.run(
+            command,
+            input=input,
+            stdout=stdout,
+            stderr=subprocess.DEVNULL,
+            check=True,
+            universal_newlines=True
+        ).stdout
+    except subprocess.CalledProcessError as e:
+        die(e)
     except FileNotFoundError:
         die("Executable '%s' not found" % command[0])
-
-    return output
 
 
 def out(command, input=None):
