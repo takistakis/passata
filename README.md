@@ -11,6 +11,7 @@ active window's title.
 
 Requirements:
 
+- Python 3.5 or newer
 - Python libraries: click, PyYAML
 - Software: gpg, xdotool, dmenu, libnotify, xclip
 
