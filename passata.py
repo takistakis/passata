@@ -65,6 +65,15 @@ def out(command, input=None):
     return call(command, stdout=subprocess.PIPE, input=input)
 
 
+def echo(message):
+    """Print message to stdout or via a pager if it doesn't fit on screen."""
+    # Plus one line for the prompt
+    if message.count('\n') + 1 >= click.get_terminal_size()[1]:
+        click.echo_via_pager(message)
+    else:
+        click.echo(message)
+
+
 def die(message):
     """Print given message to stderr and exit."""
     click.echo(message, file=sys.stderr)
@@ -381,26 +390,27 @@ def init(obj, force, gpg_id, path):
 def ls(group, no_tree, color):
     """List entries in a tree-like format."""
     db = read_db()
+    lines = []
     if group:
         groupname = group.rstrip('/')
         if groupname not in db:
             die("%s not found" % groupname)
         for name in sorted(db[groupname]):
-            click.echo(name)
+            lines.append(name)
     elif no_tree:
         for groupname in sorted(db):
             for entryname in sorted(db[groupname]):
-                click.echo("%s/%s" % (groupname, entryname))
+                lines.append("%s/%s" % (groupname, entryname))
     else:
         for groupname in sorted(db):
-            if color:
-                click.secho(groupname, fg='blue', bold=True)
-            else:
-                click.echo(groupname)
+            lines.append(click.style(groupname, fg='blue', bold=True)
+                         if color else groupname)
             grouplist = sorted(db[groupname])
             for entryname in grouplist[:-1]:
-                click.echo("├── %s" % entryname)
-            click.echo("└── %s" % grouplist[-1])
+                lines.append("├── %s" % entryname)
+            lines.append("└── %s" % grouplist[-1])
+    if lines:
+        echo('\n'.join(lines))
 
 
 @cli.command()
@@ -435,7 +445,7 @@ def show(name, clipboard, color):
             data = re.sub(r'(^\s*.*?):(\s)',
                           r'\033[38;5;12m\1\033[38;5;11m:\033[0m\2',
                           data, flags=re.MULTILINE)
-        click.echo(data)
+        echo(data)
 
 
 def do_insert(name, password, force):
