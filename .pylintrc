@@ -1,6 +1,6 @@
 [MESSAGES CONTROL]
 enable=all
-disable=redefined-builtin
+disable=redefined-builtin,too-many-ancestors
 
 [REPORTS]
 output-format=colorized

@@ -161,9 +161,6 @@ def test_insert(monkeypatch, db):
     # Insert entry
     run(['insert', 'group/test', '--password=one'])
     assert read(db) == (
-        'group:\n'
-        '  test:\n'
-        '    password: one\n'
         'internet:\n'
         '  facebook:\n'
         '    password: fb\n'
@@ -171,15 +168,14 @@ def test_insert(monkeypatch, db):
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        'group:\n'
+        '  test:\n'
+        '    password: one\n'
     )
 
     # Force update
     run(['insert', 'group/test', '--force', '--password=two'])
     assert read(db) == (
-        'group:\n'
-        '  test:\n'
-        '    password: two\n'
-        '    password_old: one\n'
         'internet:\n'
         '  facebook:\n'
         '    password: fb\n'
@@ -187,16 +183,16 @@ def test_insert(monkeypatch, db):
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        'group:\n'
+        '  test:\n'
+        '    password: two\n'
+        '    password_old: one\n'
     )
 
     # Confirm update
     confirm = True
     run(['insert', 'group/test', '--password=three'])
     assert read(db) == (
-        'group:\n'
-        '  test:\n'
-        '    password: three\n'
-        '    password_old: two\n'
         'internet:\n'
         '  facebook:\n'
         '    password: fb\n'
@@ -204,6 +200,10 @@ def test_insert(monkeypatch, db):
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        'group:\n'
+        '  test:\n'
+        '    password: three\n'
+        '    password_old: two\n'
     )
 
     # Do not confirm update
@@ -254,8 +254,8 @@ def test_edit_entry(monkeypatch, db):
         '    password: gh\n'
         '    username: takis\n'
         '  reddit:\n'
-        '    password: secret\n'
         '    username: takis\n'
+        '    password: secret\n'
     )
 
     updated = ''
@@ -286,8 +286,8 @@ def test_edit_entry(monkeypatch, db):
         '    username: takis\n'
         'mail:\n'
         '  gmail:\n'
-        '    password: yolo\n'
         '    username: sakis\n'
+        '    password: yolo\n'
     )
 
     updated = ''
@@ -303,8 +303,8 @@ def test_edit_entry(monkeypatch, db):
         '    username: takis\n'
         'mail:\n'
         '  gmail:\n'
-        '    password: yolo\n'
         '    username: sakis\n'
+        '    password: yolo\n'
     )
 
     updated = ''
@@ -372,8 +372,8 @@ def test_edit_group(monkeypatch, db):
     assert read(db) == (
         'internet:\n'
         '  facebook:\n'
-        '    password: secret\n'
         '    username: takis\n'
+        '    password: secret\n'
     )
 
 
@@ -452,12 +452,12 @@ def test_mv_entry_to_entry(db):
     run(['mv', 'internet/facebook', 'internet/fb'])
     assert read(db) == (
         'internet:\n'
-        '  fb:\n'
-        '    password: fb\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  fb:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
     )
 
 
