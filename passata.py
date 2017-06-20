@@ -17,6 +17,7 @@
 
 """A simple password manager, inspired by pass."""
 
+import collections
 import fcntl
 import os
 import random
@@ -151,15 +152,37 @@ def split(name):
 def to_dict(data):
     """Turn yaml string to dict."""
     # Return empty dict for empty string or None
-    return yaml.safe_load(data) if data else {}
+    if not data:
+        return {}
+
+    class OrderedLoader(yaml.SafeLoader):
+        """yaml.Loader subclass that safely loads to OrderedDict."""
+
+    def _constructor(loader, node):
+        loader.flatten_mapping(node)
+        return collections.OrderedDict(loader.construct_pairs(node))
+
+    tag = yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
+    OrderedLoader.add_constructor(tag, _constructor)
+    return yaml.load(data, Loader=OrderedLoader)
 
 
 def to_string(data):
     """Turn dict to yaml string."""
     # Return empty string for empty dict or None
-    return yaml.safe_dump(
-        data, default_flow_style=False, allow_unicode=True
-    ) if data else ''
+    if not data:
+        return ''
+
+    class OrderedDumper(yaml.SafeDumper):
+        """yaml.Dumper subclass that safely dumps from OrderedDict."""
+
+    def _representer(dumper, data):
+        tag = yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
+        return dumper.represent_mapping(tag, data.items())
+
+    OrderedDumper.add_representer(collections.OrderedDict, _representer)
+    return yaml.dump(data, Dumper=OrderedDumper,
+                     default_flow_style=False, allow_unicode=True)
 
 
 # Config
