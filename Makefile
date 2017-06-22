@@ -1,14 +1,5 @@
 PREFIX = /usr/local
 
-test:
-	flake8 *.py
-	pytest
-
-coverage:
-	coverage run -m pytest --strict
-	coverage report
-	coverage html
-
 install:
 	install -d $(PREFIX)/bin
 	install -C -m 755 passata.py $(PREFIX)/bin/passata
@@ -19,4 +10,4 @@ uninstall:
 	rm -f $(PREFIX)/bin/passata
 	rm -f $(PREFIX)/share/zsh/site-functions/_passata
 
-.PHONY: test coverage install uninstall
+.PHONY: install uninstall
