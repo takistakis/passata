@@ -2,18 +2,20 @@
 
 # Copyright 2017 Panagiotis Ktistakis <panktist@gmail.com>
 #
-# This program is free software: you can redistribute it and/or modify
+# This file is part of passata.
+#
+# passata is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# This program is distributed in the hope that it will be useful,
+# passata is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with passata.  If not, see <http://www.gnu.org/licenses/>.
 
 """A simple password manager, inspired by pass."""
 
@@ -351,7 +353,7 @@ def pop(db, name, force=False):
               help="Path of the configuration file.")
 @click.version_option(version=__version__)
 @click.pass_context
-def cli(ctx, config):
+def cli(ctx, config):  # noqa: D401
     """A simple password manager, inspired by pass."""
     ctx.obj = {'_confpath': os.path.abspath(os.path.expanduser(config))}
     # When init is invoked there isn't supposed to be a config file yet
