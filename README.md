@@ -34,28 +34,26 @@ script.
 
 ## Usage
 
-```
-$ passata --help
-Usage: passata [OPTIONS] COMMAND [ARGS]...
+    $ passata --help
+    Usage: passata [OPTIONS] COMMAND [ARGS]...
 
-  A simple password manager, inspired by pass.
+      A simple password manager, inspired by pass.
 
-Options:
-  --config PATH  Path of the configuration file.
-  --version      Show the version and exit.
-  --help         Show this message and exit.
+    Options:
+      --config PATH  Path of the configuration file.
+      --version      Show the version and exit.
+      --help         Show this message and exit.
 
-Commands:
-  autotype  Type login credentials.
-  edit      Edit entry, group or the whole database.
-  generate  Generate a random password.
-  init      Initialize password database.
-  insert    Insert a new password.
-  ls        List entries in a tree-like format.
-  mv        Move or rename entries.
-  rm        Remove entries or groups.
-  show      Decrypt and print entry.
-```
+    Commands:
+      autotype  Type login credentials.
+      edit      Edit entry, group or the whole database.
+      generate  Generate a random password.
+      init      Initialize password database.
+      insert    Insert a new password.
+      ls        List entries in a tree-like format.
+      mv        Move or rename entries.
+      rm        Remove entries or groups.
+      show      Decrypt and print entry.
 
 See `passata <command> --help` for more info on a specific command.
 
