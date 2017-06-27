@@ -60,12 +60,17 @@ See `passata <command> --help` for more info on a specific command.
 ## Autotype
 
 By running `passata autotype`, passata tries to find the entry that
-matches the active window's title, or prompt the user using dmenu if
-there are more than one matches or no matches at all. Then types the
-sequence that is specified in the `autotype` field of the entry.
+matches the active window's title. Specifically it looks for entries
+whose name or any string in the `keywords` field, is included in the
+title (case insensitive). If there are zero or more than one such
+entries, the user is prompted to choose the right one using dmenu.
+Finally the sequence that is specified in the `autotype` field of the
+chosen entry is typed using xdotool.
 
 This is supposed to be used by adding a keybinding for `passata
 autotype` to your window manager's configuration.
+
+The `keywords` field can contain a string or list of strings.
 
 The `autotype` field supports the following items:
 
@@ -83,6 +88,18 @@ Return` if there is only a `<password>`.
 
 This feature is based on [pass-autotype], which I recommend if you want
 something similar and prefer pass.
+
+### Example
+
+An entry for a google account could look like that:
+
+    google:
+      username: user
+      password: pass
+      autotype: <username> Return !1.5 <password> Return
+      keywords:
+      - youtube
+      - gmail
 
 ## License
 

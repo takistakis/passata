@@ -548,6 +548,25 @@ def test_mv_overwrite(monkeypatch, db):
     )
 
 
+def test_get_keywords():
+    # The `keywords` field is empty
+    entry = {'username': 'takis', 'password': 'pass'}
+    keywords = passata.get_keywords(entry)
+    assert keywords == []
+
+    # The `keywords` field contains a string
+    entry = {'username': 'takis', 'password': 'pass',
+             'keywords': 'Keyword'}
+    keywords = passata.get_keywords(entry)
+    assert keywords == ['keyword']
+
+    # The `keywords` field contains a list of strings
+    entry = {'username': 'takis', 'password': 'pass',
+             'keywords': ['Google', 'YouTube', 'Gmail']}
+    keywords = passata.get_keywords(entry)
+    assert keywords == ['google', 'youtube', 'gmail']
+
+
 def test_get_autotype(monkeypatch):
     # <autotype> field in entry
     entry = {'username': 'takis', 'password': 'pass',
