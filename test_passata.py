@@ -149,9 +149,15 @@ def test_show(db):
     with pytest.raises(SystemExit):
         clipboard()
 
+    # Try to put the whole database to clipboard
+    result = run(['show', '--clipboard'])
+    assert repr(result.exception) == 'SystemExit(1,)'
+    assert result.output == "Can't put the entire database to clipboard\n"
+
     # Try to put a whole group to clipboard
     result = run(['show', 'internet', '--clipboard'])
     assert repr(result.exception) == 'SystemExit(1,)'
+    assert result.output == "Can't put the entire group to clipboard\n"
 
     # Show group
     expected = (

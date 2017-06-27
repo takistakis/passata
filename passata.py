@@ -438,18 +438,19 @@ def ls(group, no_tree, color):
         echo('\n'.join(lines))
 
 
-@cli.command()
+@cli.command(short_help="Show entry, group or the whole database.")
 @click.option('-c', '--clipboard', is_flag=True,
               help="Copy password to clipboard instead of printing.")
 @click.option('--color/--no-color', is_flag=True,
               default=lambda: option('color'),
               help="Whether to colorize the output.")
-@click.argument('name')
+@click.argument('name', required=False)
 def show(name, clipboard, color):
-    """Decrypt and print entry.
+    """Decrypt and print the contents of NAME.
 
-    If NAME is a group, print all entries in that group. If --clipboard is
-    specified, the password will stay in the clipboard until it is pasted once.
+    NAME can be an entry, a group, or omitted to print the whole database. If
+    NAME is an entry and --clipboard is specified, the password will stay in
+    the clipboard until it is pasted.
     """
     db = read_db()
     entry = get(db, name)
@@ -457,6 +458,8 @@ def show(name, clipboard, color):
         die("%s not found" % name)
 
     if clipboard:
+        if name is None:
+            die("Can't put the entire database to clipboard")
         if isgroup(name):
             die("Can't put the entire group to clipboard")
         to_clipboard(entry['password'], loops=1)
