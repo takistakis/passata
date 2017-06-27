@@ -53,7 +53,7 @@ script.
       ls        List entries in a tree-like format.
       mv        Move or rename entries.
       rm        Remove entries or groups.
-      show      Decrypt and print entry.
+      show      Show entry, group or the whole database.
 
 See `passata <command> --help` for more info on a specific command.
 

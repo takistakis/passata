@@ -17,7 +17,7 @@ _passata() {
       subcommands=(
         'init:Initialize password database'
         'ls:List entries in a tree-like format'
-        'show:Decrypt and print entry'
+        'show:Show entry, group or the whole database'
         'insert:Insert a new password'
         'generate:Generate a random password'
         'edit:Edit entry, group or the whole database'
