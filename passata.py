@@ -626,6 +626,16 @@ def keyboard(key, entry):
         call(['xdotool', 'key', key])
 
 
+def get_keywords(entry):
+    """Return a list of strings to search for in the window's title."""
+    keywords = entry.get('keywords')
+    if isinstance(keywords, list):
+        return [str(keyword).lower() for keyword in keywords]
+    elif keywords is not None:
+        return [str(keywords).lower()]
+    return []
+
+
 def get_autotype(entry):
     """Return a list with the items that need to be typed."""
     data = entry.get('autotype')
@@ -654,7 +664,11 @@ def autotype():
         for entryname in sorted(db[groupname]):
             name = '%s/%s' % (groupname, entryname)
             names.append(name)
-            if entryname.lower() in window[1].lower():
+            entry = get(db, name)
+            keywords = [entryname.lower()]
+            keywords.extend(get_keywords(entry))
+            title = window[1].lower()
+            if any(keyword in title for keyword in keywords):
                 matches.append(name)
 
     if len(matches) == 1:
