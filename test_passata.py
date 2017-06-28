@@ -237,6 +237,21 @@ def test_insert(monkeypatch, db):
     assert repr(result.exception) == 'SystemExit(1,)'
 
 
+def test_generate_password():
+    alphanumeric = ('abcdefghijklmnopqrstuvwxyz'
+                    'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                    '0123456789')
+    symbols = '!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
+
+    password = passata.generate_password(10, False)
+    assert len(password) == 10
+    assert all(char in alphanumeric for char in password)
+
+    password = passata.generate_password(17, True)
+    assert len(password) == 17
+    assert all(char in alphanumeric + symbols for char in password)
+
+
 def test_generate(monkeypatch, db):
     monkeypatch.setattr(passata, 'generate_password', lambda l, s: l * 'x')
 
