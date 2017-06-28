@@ -51,7 +51,7 @@ def db(tmpdir, monkeypatch):
 
 
 def read(dbpath):
-    return open(dbpath).read()
+    return open(str(dbpath)).read()
 
 
 def run(args):
@@ -72,26 +72,26 @@ def test_init(tmpdir, monkeypatch):
     dbpath = tmpdir.join('passata.db')
 
     # Try to execute a command without having initialized passata
-    result = run(['--config', confpath, 'ls'])
+    result = run(['--config', str(confpath), 'ls'])
     assert repr(result.exception) == 'SystemExit(1,)'
     assert result.output == "Run `passata init` first\n"
 
     # Initialize
     result = run(['--config', confpath, 'ls'])
     email = 'mail@mail.com'
-    run(['--config=%s' % confpath, 'init',
+    run(['--config=%s' % str(confpath), 'init',
          '--gpg-id=%s' % email, '--path=%s' % dbpath])
     contents = confpath.read()
     assert 'database: %s' % dbpath in contents
     assert 'gpg_id: %s' % email in contents
 
     # Try again and now it should work
-    result = run(['--config', confpath, 'ls'])
+    result = run(['--config', str(confpath), 'ls'])
     assert result.output == ''
 
     # Try again after deleting the database and it should fail
-    os.unlink(dbpath)
-    result = run(['--config', confpath, 'ls'])
+    os.unlink(str(dbpath))
+    result = run(['--config', str(confpath), 'ls'])
     assert repr(result.exception) == 'SystemExit(1,)'
     assert result.output == "Database file (%s) does not exist\n" % dbpath
 

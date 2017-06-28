@@ -1,0 +1,27 @@
+sudo: required
+dist: trusty
+language: python
+matrix:
+  include:
+    - python: 3.5
+      env: TOX_ENV=py35
+    - python: 3.6
+      env: TOX_ENV=py36
+    - python: 3.6
+      env: TOX_ENV=flake8
+    - python: 3.6
+      env: TOX_ENV=pylint
+    - python: 3.6
+      env: TOX_ENV=pyroma
+    - python: 3.6
+      env: TOX_ENV=check-manifest
+install:
+  - sudo apt-get -y -q install xclip
+  - pip install --upgrade pip
+  - pip install tox tox-travis
+before_script:
+  # xclip requires a display
+  - export DISPLAY=:99.0
+  - sh -e /etc/init.d/xvfb start
+  - sleep 3 # give xvfb some time to start
+script: tox -e $TOX_ENV
