@@ -490,7 +490,7 @@ def do_insert(name, password, force):
     else:
         confirm("Overwrite %s?" % name, force)
         if 'password' in entry:
-            entry['password_old'] = entry['password']
+            entry['old_password'] = entry['password']
         entry['password'] = password
 
     write_db(db)
@@ -505,7 +505,7 @@ def insert(name, force, password):
     """Insert a new password.
 
     When overwriting an existing entry, the old password is kept in
-    <password_old>.
+    <old_password>.
     """
     do_insert(name, password, force)
 
@@ -526,7 +526,7 @@ def generate(name, force, clipboard, length, symbols):
     """Generate a random password.
 
     When overwriting an existing entry, the old password is kept in
-    <password_old>. If --clipboard is specified, the password will stay in the
+    <old_password>. If --clipboard is specified, the password will stay in the
     clipboard until it is pasted twice.
     """
     password = generate_password(length, symbols)

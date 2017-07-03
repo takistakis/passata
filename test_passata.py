@@ -211,7 +211,7 @@ def test_insert(monkeypatch, db):
         'group:\n'
         '  test:\n'
         '    password: two\n'
-        '    password_old: one\n'
+        '    old_password: one\n'
     )
 
     # Confirm update
@@ -228,7 +228,7 @@ def test_insert(monkeypatch, db):
         'group:\n'
         '  test:\n'
         '    password: three\n'
-        '    password_old: two\n'
+        '    old_password: two\n'
     )
 
     # Do not confirm update
