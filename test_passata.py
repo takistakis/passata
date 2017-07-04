@@ -236,6 +236,25 @@ def test_insert(monkeypatch, db):
     result = run(['insert', 'group', '--password=four'])
     assert repr(result.exception) == 'SystemExit(1,)'
 
+    # Add an entry with no password so there's no need for a backup
+    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
+    updated = 'username: user\n'
+    run(['edit', 'group/test'])
+    run(['insert', 'group/test', '--force', '--password=five'])
+    assert read(db) == (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+        'group:\n'
+        '  test:\n'
+        '    username: user\n'
+        '    password: five\n'
+    )
+
 
 def test_generate_password():
     alphanumeric = ('abcdefghijklmnopqrstuvwxyz'
@@ -260,20 +279,51 @@ def test_generate(monkeypatch, db):
     assert result.exit_code == 2
     assert 'Error' in result.output
 
+    # Generate and print
     result = run(['generate'])
     assert result.output == 'xxxxxxxxxxxxxxxxxxxx\n'
 
+    # Generate and put to clipboard
+    result = run(['generate', '--clipboard'])
+    assert result.output == ("Put generated password to clipboard "
+                             "(will disappear after pasted twice)\n")
+    assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
+    assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
+    with pytest.raises(SystemExit):
+        clipboard()
+
+    # Generate, put in new entry and print
     result = run(['generate', 'asdf/test', '--length=5', '--force'])
     assert result.output == 'xxxxx\n'
 
-    result = run(['generate', 'asdf/test', '--length=5', '--force',
+    # Generate, put in existing entry and put to clipboard
+    monkeypatch.setattr(click, 'pause',
+                        lambda: print("Press any key to continue ..."))
+    result = run(['generate', 'asdf/test', '--length=7', '--force',
                   '--clipboard'])
-    assert result.output == ''
-    assert clipboard() == 'xxxxx'
-    assert clipboard() == 'xxxxx'
-    # Should be gone after being pasted twice
+    assert result.output == ("Put old password to clipboard "
+                             "(will disappear after pasted)\n"
+                             "Press any key to continue ...\n"
+                             "Put generated password to clipboard "
+                             "(will disappear after pasted twice)\n")
+    assert clipboard() == 'xxxxxxx'
+    assert clipboard() == 'xxxxxxx'
     with pytest.raises(SystemExit):
         clipboard()
+
+    assert read(db) == (
+        'internet:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+        'asdf:\n'
+        '  test:\n'
+        '    password: xxxxxxx\n'
+        '    old_password: xxxxx\n'
+    )
 
 
 def test_edit_entry(monkeypatch, db):

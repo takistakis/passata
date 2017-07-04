@@ -480,20 +480,24 @@ def do_insert(name, password, force):
     """Insert `password` into `name` without deleting everything else.
 
     If `name` is already in the database, keep a backup of the old password.
+    Return the old password or None if there wasn't one.
     """
     if isgroup(name):
         die("%s is a group" % name)
     db = read_db(lock=True)
     entry = get(db, name)
+    old_password = None
     if entry is None:
         put(db, name, {'password': password})
     else:
         confirm("Overwrite %s?" % name, force)
         if 'password' in entry:
-            entry['old_password'] = entry['password']
+            old_password = entry['password']
+            entry['old_password'] = old_password
         entry['password'] = password
 
     write_db(db)
+    return old_password
 
 
 @cli.command()
@@ -526,14 +530,21 @@ def generate(name, force, clipboard, length, symbols):
     """Generate a random password.
 
     When overwriting an existing entry, the old password is kept in
-    <old_password>. If --clipboard is specified, the password will stay in the
-    clipboard until it is pasted twice.
+    <old_password>.
     """
     password = generate_password(length, symbols)
+    old_password = None
     if name:
-        do_insert(name, password, force)
+        old_password = do_insert(name, password, force)
     if clipboard:
+        if old_password is not None:
+            to_clipboard(old_password, loops=1)
+            click.echo("Put old password to clipboard "
+                       "(will disappear after pasted)")
+            click.pause()
         to_clipboard(password, loops=2)
+        click.echo("Put generated password to clipboard "
+                   "(will disappear after pasted twice)")
     else:
         click.echo(password)
 
