@@ -64,6 +64,11 @@ def clipboard():
     return passata.out(command)
 
 
+def test_invalid_call():
+    with pytest.raises(SystemExit):
+        passata.call(['there_is_no_such_executable.exe'])
+
+
 def test_init(tmpdir, monkeypatch):
     monkeypatch.setattr(passata, 'encrypt', lambda x: x)
     monkeypatch.setattr(passata, 'decrypt', lambda x: open(x).read())
