@@ -420,20 +420,20 @@ def ls(group, no_tree, color):
         groupname = group.rstrip('/')
         if groupname not in db:
             die("%s not found" % groupname)
-        for name in sorted(db[groupname]):
-            lines.append(name)
+        for entryname in db[groupname]:
+            lines.append(entryname)
     elif no_tree:
-        for groupname in sorted(db):
-            for entryname in sorted(db[groupname]):
+        for groupname in db:
+            for entryname in db[groupname]:
                 lines.append("%s/%s" % (groupname, entryname))
     else:
-        for groupname in sorted(db):
+        for groupname in db:
             lines.append(click.style(groupname, fg='blue', bold=True)
                          if color else groupname)
-            grouplist = sorted(db[groupname])
-            for entryname in grouplist[:-1]:
+            entrynames = list(db[groupname])
+            for entryname in entrynames[:-1]:
                 lines.append("├── %s" % entryname)
-            lines.append("└── %s" % grouplist[-1])
+            lines.append("└── %s" % entrynames[-1])
     if lines:
         echo('\n'.join(lines))
 
