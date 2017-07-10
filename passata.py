@@ -346,7 +346,7 @@ def pop(db, name, force=False):
 
 
 # Commands
-@click.group()
+@click.group(context_settings={'help_option_names': ['-h', '--help']})
 @click.option('--config', type=click.Path(dir_okay=False),
               default=os.path.join(click.get_app_dir('passata'), 'config.yml'),
               envvar='PASSATA_CONFIG_PATH',
