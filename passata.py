@@ -371,6 +371,10 @@ def cli(ctx, config):  # noqa: D401
 def init(obj, force, gpg_id, path):
     """Initialize password database."""
     dbpath = os.path.abspath(os.path.expanduser(path))
+    # lock_file() creates the file if it does not
+    # exist, so we need to ask for confirmation here.
+    if os.path.isfile(dbpath):
+        confirm("Overwrite %s?" % dbpath, force)
     lock_file(dbpath)
     confpath = obj['_confpath']
     if os.path.isfile(confpath):
@@ -401,7 +405,7 @@ def init(obj, force, gpg_id, path):
         f.write(template % to_string(config))
 
     obj.update(config)
-    write_db({}, force=False)
+    write_db({})
 
 
 @cli.command()
