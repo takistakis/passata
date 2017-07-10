@@ -80,18 +80,34 @@ def test_init(tmpdir, monkeypatch):
     result = run(['--config', str(confpath), 'ls'])
     assert repr(result.exception) == 'SystemExit(1,)'
     assert result.output == "Run `passata init` first\n"
+    assert not os.path.isfile(str(dbpath))
 
-    # Initialize
-    result = run(['--config', confpath, 'ls'])
+    # Initialize. It should not ask for confirmation.
     email = 'mail@mail.com'
-    run(['--config=%s' % str(confpath), 'init',
-         '--gpg-id=%s' % email, '--path=%s' % dbpath])
+    result = run(['--config=%s' % str(confpath), 'init',
+                  '--gpg-id=%s' % email, '--path=%s' % dbpath])
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert result.output == ''
+    assert os.path.isfile(str(dbpath))
     contents = confpath.read()
     assert 'database: %s' % dbpath in contents
     assert 'gpg_id: %s' % email in contents
 
-    # Try again and now it should work
+    # Initialize again. Now it should ask for confirmation.
+    monkeypatch.setattr(click, 'confirm', lambda m: confirm)
+    confirm = False
+    email2 = 'anothermail@mail.com'
+    result = run(['--config=%s' % str(confpath), 'init',
+                  '--gpg-id=%s' % email2, '--path=%s' % dbpath])
+    contents = confpath.read()
+    assert 'gpg_id: %s' % email in contents
+    assert 'gpg_id: %s' % email2 not in contents
+
+    # Try to execute a command again and now it should work
     result = run(['--config', str(confpath), 'ls'])
+    assert result.exit_code == 0
+    assert result.exception is None
     assert result.output == ''
 
     # Try again after deleting the database and it should fail
