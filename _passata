@@ -7,7 +7,7 @@ _passata() {
   _arguments : \
     '--config[Path of the configuration file]:file:_files' \
     '--version[Show the version and exit]' \
-    '--help[Show help message and exit]' \
+    '(-h --help)'{-h,--help}'[Show help message and exit]' \
     ':command:->command' \
     '*::options:->options'
 
@@ -36,7 +36,7 @@ _passata() {
             '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
             '(-g --gpg-id)'{-g,--gpg-id}'[GnuPG ID for database encryption]:gpg key:_complete_keys' \
             '(-p --path)'{-p,--path}'[Database path]:file:_files' \
-            '--help[Show help message and exit]'
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
           ;;
 
         ls)
@@ -44,7 +44,7 @@ _passata() {
             '(-n --no-tree)'{-n,--no-tree}'[Print entries in <group>/<name> format]' \
             '(--color --no-color)--color[Colorize the output]' \
             '(--color --no-color)--no-color[Do not colorize the output]' \
-            '--help[Show help message and exit]'
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_groups
           ;;
 
@@ -53,7 +53,7 @@ _passata() {
             '(-c --clipboard)'{-c,--clipboard}'[Copy password to clipboard instead of printing]' \
             '(--color --no-color)--color[Colorize the output]' \
             '(--color --no-color)--no-color[Do not colorize the output]' \
-            '--help[Show help message and exit]'
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;
 
@@ -61,7 +61,7 @@ _passata() {
           _arguments -s : \
             '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
             '--password[Give password instead of being prompted for it]' \
-            '--help[Show help message and exit]'
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;
 
@@ -72,20 +72,20 @@ _passata() {
             '(-l --length)'{-l,--length}'[Length of the generated password]' \
             '(--symbols --no-symbols)--symbols[Use symbols in the generated password]' \
             '(--symbols --no-symbols)--no-symbols[Do not use symbols in the generated password]' \
-            '--help[Show help message and exit]'
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;
 
         edit)
           _arguments -s : \
-            '--help[Show help message and exit]'
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;
 
         rm|mv)
           _arguments -s : \
             '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
-            '--help[Show help message and exit]'
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;
       esac
