@@ -210,8 +210,7 @@ def read_config(confpath):
 def option(key):
     """Return the config option for `key`."""
     config = click.get_current_context().obj
-    if key not in config:
-        die("'%s' was not found in the configuration file" % key)
+    assert key in config
     return config[key]
 
 
