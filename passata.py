@@ -603,16 +603,30 @@ def mv(source, dest, force):
     if len(source) > 1 and not isgroup(dest):
         die("%s is not a group" % dest)
 
-    for name in source:
-        if get(db, name) is None:
-            die("%s not found" % name)
-        # os.path.join() because using '/'.join('groupname/', 'entryname')
-        # would result in two slashes.
-        newname = os.path.join(dest, split(name)[1]) if isgroup(dest) else dest
-        if get(db, newname) is not None:
-            confirm("Overwrite %s?" % dest, force)
-        entry = pop(db, name, force=True)
-        put(db, newname, entry)
+    if len(source) == 1 and isgroup(source[0]):
+        if not isgroup(dest):
+            die("%s is not a group" % dest)
+        groupname = source[0]
+        if get(db, groupname) is None:
+            die("%s not found" % groupname)
+        if get(db, dest) is not None:
+            # Do not implicitly remove a whole group even by asking the
+            # user. Instead we could prompt for merging the two groups.
+            die("%s already exists" % dest)
+        group = pop(db, groupname, force=True)
+        put(db, dest, group)
+    else:
+        for name in source:
+            if get(db, name) is None:
+                die("%s not found" % name)
+            # os.path.join() because using '/'.join('groupname/', 'entryname')
+            # would result in two slashes.
+            newname = os.path.join(dest, split(name)[1]) \
+                if isgroup(dest) else dest
+            if get(db, newname) is not None:
+                confirm("Overwrite %s?" % newname, force)
+            entry = pop(db, name, force=True)
+            put(db, newname, entry)
 
     write_db(db)
 

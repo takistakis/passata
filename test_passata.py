@@ -606,8 +606,41 @@ def test_mv_entries_to_group(db):
     )
 
 
+def test_mv_group_to_group(db):
+    run(['mv', 'internet', 'test'])
+    assert read(db) == (
+        'test:\n'
+        '  facebook:\n'
+        '    password: fb\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
+
+
+def test_mv_group_to_entry(db):
+    result = run(['mv', 'internet', 'internet/github'])
+    assert result.output == "internet/github is not a group\n"
+    assert repr(result.exception) == 'SystemExit(1,)'
+
+
 def test_mv_nonexistent_entry(db):
     result = run(['mv', 'internet/nonexistent', 'group'])
+    assert result.output == "internet/nonexistent not found\n"
+    assert repr(result.exception) == 'SystemExit(1,)'
+
+
+def test_mv_nonexistent_group(db):
+    result = run(['mv', 'nonexistent', 'group'])
+    assert result.output == "nonexistent not found\n"
+    assert repr(result.exception) == 'SystemExit(1,)'
+
+
+def test_mv_group_to_existing_group(db):
+    run(['insert', 'group/test', '--password=pass'])
+    result = run(['mv', 'group', 'internet'])
+    assert result.output == "internet already exists\n"
     assert repr(result.exception) == 'SystemExit(1,)'
 
 
