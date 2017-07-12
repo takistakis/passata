@@ -18,9 +18,11 @@
 """Tests for passata."""
 
 import os
+import time
 
 import click
 import click.testing
+import py
 import pytest
 
 import passata
@@ -791,3 +793,34 @@ def test_autotype_invalid(monkeypatch, db):
     window_title = 'test4'
     result = run(['autotype'])
     assert repr(result.exception) == 'SystemExit(1,)'
+
+
+def test_lock(monkeypatch, db):
+
+    class FakeContext:
+        obj = {'database': str(db)}
+
+    ctx = FakeContext()
+    monkeypatch.setattr(click, 'get_current_context', lambda: ctx)
+
+    def background_lock():
+        passata.lock_file(str(db))
+        assert '_lock' in ctx.obj
+        time.sleep(1)
+
+    # lockf locks are bound to processes, not file descriptors
+    # so we have to use a forked process to properly test this.
+    ff = py.process.ForkedFunc(background_lock)
+    time.sleep(0.5)
+
+    result = run(['rm', 'internet/github', '--force'])
+    assert result.output == "Another passata process is editing the database\n"
+    assert repr(result.exception) == 'SystemExit(1,)'
+
+    result = ff.waitfinish()
+    assert result.exitstatus == 0
+    assert result.out == result.err == ''
+
+    result = run(['rm', 'internet/github', '--force'])
+    assert result.output == ''
+    assert result.exception is None
