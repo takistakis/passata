@@ -131,6 +131,12 @@ def confirm(message, force):
         sys.exit(0)
 
 
+def confirm_overwrite(filename, force):
+    """Exit if the file exists and the user wants it."""
+    if os.path.isfile(filename):
+        confirm("Overwrite %s?" % filename, force)
+
+
 def isgroup(name):
     """Return whether `name` is in 'groupname' or 'groupname/' format."""
     return '/' not in name or not name.split('/')[1]
@@ -248,8 +254,7 @@ def encrypt(data):
 def write_db(db, force=True):
     """Write the database as an encrypted string."""
     dbpath = option('database')
-    if os.path.isfile(dbpath):
-        confirm("Overwrite %s?" % dbpath, force)
+    confirm_overwrite(dbpath, force)
     data = to_string(db)
     encrypted = encrypt(data)
     # Write to a temporary file, make sure the data has reached the
@@ -373,12 +378,10 @@ def init(obj, force, gpg_id, path):
     dbpath = os.path.abspath(os.path.expanduser(path))
     # lock_file() creates the file if it does not
     # exist, so we need to ask for confirmation here.
-    if os.path.isfile(dbpath):
-        confirm("Overwrite %s?" % dbpath, force)
+    confirm_overwrite(dbpath, force)
     lock_file(dbpath)
     confpath = obj['_confpath']
-    if os.path.isfile(confpath):
-        confirm("Overwrite %s?" % confpath, force)
+    confirm_overwrite(confpath, force)
     os.makedirs(os.path.dirname(confpath), exist_ok=True)
 
     template = (
