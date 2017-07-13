@@ -476,6 +476,8 @@ def show(name, clipboard, color):
             data = re.sub(r'(^\s*.*?):(\s)',
                           r'\033[38;5;12m\1\033[38;5;11m:\033[0m\2',
                           data, flags=re.MULTILINE)
+            data = re.sub(r'(^\s*-\s)', r'\033[38;5;9m\1\033[0m',
+                          data, flags=re.MULTILINE)
         echo(data)
 
 
