@@ -637,7 +637,7 @@ def mv(source, dest, force):
 
 
 # Autotype
-def active_window():
+def active_window():  # pragma: no cover
     """Get active window id and name."""
     window_id = out(['xdotool', 'getactivewindow'])
     window_name = out(['xdotool', 'getwindowname', window_id])
@@ -714,7 +714,7 @@ def autotype():
 
     entry = get(db, choice)
     for key in get_autotype(entry):
-        if active_window() != window:
+        if active_window() != window:  # pragma: no cover
             xdie("Window has changed")
         keyboard(key, entry)
 
