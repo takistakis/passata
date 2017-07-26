@@ -96,13 +96,13 @@ something similar and prefer pass.
 
 An entry for a google account could look like that:
 
-    google:
-      username: user
-      password: pass
-      autotype: <username> Return !1.5 <password> Return
-      keywords:
-      - youtube
-      - gmail
+    $ passata show internet/google
+    username: user
+    password: pass
+    autotype: <username> Return !1.5 <password> Return
+    keywords:
+    - youtube
+    - gmail
 
 ## License
 
