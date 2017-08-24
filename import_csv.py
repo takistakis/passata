@@ -19,6 +19,7 @@
 
 """Migrate a keepassx2 csv database to passata yaml format."""
 
+import collections
 import csv
 import os.path
 
@@ -43,7 +44,7 @@ def import_csv(ctx, config, file):
     """
     ctx.obj = passata.read_config(config)
 
-    db = {}
+    db = collections.OrderedDict()
     next(file)  # Skip headers
     for line in csv.reader(file):
         group, title, username, password, url, notes = line
@@ -51,7 +52,7 @@ def import_csv(ctx, config, file):
             passata.die("Every entry should be in a group")
         group = group[5:]  # Skip 'Root/'
         name = '/'.join([group, title])
-        entry = {}
+        entry = collections.OrderedDict()
         if username:
             entry['username'] = username
         if password:
