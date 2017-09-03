@@ -235,8 +235,7 @@ def decrypt(path):
 
 def read_db(lock=False):
     """Return the database as a plaintext string."""
-    dbpath = option('database')
-    dbpath = os.path.expanduser(dbpath)
+    dbpath = os.path.expanduser(option('database'))
     if not os.path.isfile(dbpath):
         die("Database file (%s) does not exist" % dbpath)
     if lock:
@@ -253,7 +252,7 @@ def encrypt(data):
 
 def write_db(db, force=True):
     """Write the database as an encrypted string."""
-    dbpath = option('database')
+    dbpath = os.path.expanduser(option('database'))
     confirm_overwrite(dbpath, force)
     data = to_string(db)
     encrypted = encrypt(data)
