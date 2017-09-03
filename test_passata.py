@@ -251,78 +251,57 @@ def test_insert(monkeypatch, db):
     # Try to insert group
     result = run(['insert', 'group', '--password=...'])
     assert repr(result.exception) == 'SystemExit(1,)'
+    assert result.output == 'group is a group\n'
 
     # Insert entry
     run(['insert', 'group/test', '--password=one'])
-    assert read(db) == (
-        'internet:\n'
-        '  facebook:\n'
-        '    password: fb\n'
-        '    username: sakis\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
+    assert (
         'group:\n'
         '  test:\n'
         '    password: one\n'
-    )
+    ) in read(db)
 
     # Force update
     run(['insert', 'group/test', '--force', '--password=two'])
-    assert read(db) == (
-        'internet:\n'
-        '  facebook:\n'
-        '    password: fb\n'
-        '    username: sakis\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
+    assert (
         'group:\n'
         '  test:\n'
         '    password: two\n'
         '    old_password: one\n'
-    )
+    ) in read(db)
 
     # Confirm update
     confirm = True
     run(['insert', 'group/test', '--password=three'])
-    assert read(db) == (
-        'internet:\n'
-        '  facebook:\n'
-        '    password: fb\n'
-        '    username: sakis\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
+    assert (
         'group:\n'
         '  test:\n'
         '    password: three\n'
         '    old_password: two\n'
-    )
+    ) in read(db)
 
     # Do not confirm update
     confirm = False
-    result = run(['insert', 'group', '--password=four'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    result = run(['insert', 'group/test', '--password=four'])
+    assert result.exception is None
+    assert (
+        'group:\n'
+        '  test:\n'
+        '    password: three\n'
+        '    old_password: two\n'
+    ) in read(db)
 
     # Add an entry with no password so there's no need for a backup
     monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
     updated = 'username: user\n'
     run(['edit', 'group/test'])
     run(['insert', 'group/test', '--force', '--password=five'])
-    assert read(db) == (
-        'internet:\n'
-        '  facebook:\n'
-        '    password: fb\n'
-        '    username: sakis\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
+    assert (
         'group:\n'
         '  test:\n'
         '    username: user\n'
         '    password: five\n'
-    )
+    ) in read(db)
 
 
 def test_generate_password():
