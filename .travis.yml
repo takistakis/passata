@@ -1,22 +1,22 @@
-sudo: required
+sudo: false
 dist: trusty
 language: python
+python: 3.6
+addons:
+  apt:
+    packages:
+      - xclip
 matrix:
   include:
     - python: 3.5
       env: TOX_ENV=py35
-    - python: 3.6
-      env: TOX_ENV=py36
-    - python: 3.6
-      env: TOX_ENV=flake8
-    - python: 3.6
-      env: TOX_ENV=pylint
-    - python: 3.6
-      env: TOX_ENV=pyroma
-    - python: 3.6
-      env: TOX_ENV=check-manifest
+    - env: TOX_ENV=py36
+    - env: TOX_ENV=flake8
+    - env: TOX_ENV=pylint
+    - env: TOX_ENV=pyroma
+    - env: TOX_ENV=check-manifest
+cache: pip
 install:
-  - sudo apt-get -y -q install xclip
   - pip install --upgrade pip
   - pip install tox tox-travis
 before_script:
