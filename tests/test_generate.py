@@ -23,29 +23,57 @@ import pytest
 import passata
 from tests.helpers import clipboard, read, run
 
+ALPHANUMERIC = ('abcdefghijklmnopqrstuvwxyz'
+                'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                '0123456789')
 
-def test_generate_password():
-    alphanumeric = ('abcdefghijklmnopqrstuvwxyz'
-                    'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-                    '0123456789')
-    symbols = '!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
+SYMBOLS = '!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
 
-    password = passata.generate_password(10, False)
+
+def test_generate_password_length_no_symbols():
+    password = passata.generate_password(
+        length=10, entropy=None, symbols=False, force=False)
     assert len(password) == 10
-    assert all(char in alphanumeric for char in password)
+    assert all(char in ALPHANUMERIC for char in password)
+    assert not any(char in password for char in SYMBOLS)
 
-    password = passata.generate_password(17, True)
+
+def test_generate_password_length_symbols():
+    password = passata.generate_password(
+        length=17, entropy=None, symbols=True, force=False)
     assert len(password) == 17
-    assert all(char in alphanumeric + symbols for char in password)
+    assert all(char in ALPHANUMERIC + SYMBOLS for char in password)
+
+
+def test_generate_password_entropy_no_symbols():
+    password = passata.generate_password(
+        length=None, entropy=128, symbols=False, force=False)
+    assert len(password) == 22
+
+
+def test_generate_password_entropy_symbols():
+    password = passata.generate_password(
+        length=None, entropy=128, symbols=True, force=False)
+    assert len(password) == 20
+
+
+def test_generate_password_short(monkeypatch):
+    monkeypatch.setattr(click, 'confirm', lambda m: confirm)
+    # Do not confirm
+    confirm = False
+    with pytest.raises(SystemExit):
+        password = passata.generate_password(
+            length=4, entropy=None, symbols=True, force=False)
+    # Confirm
+    confirm = True
+    password = passata.generate_password(
+        length=4, entropy=None, symbols=True, force=False)
+    assert len(password) == 4
 
 
 def test_generate(monkeypatch, db):
-    monkeypatch.setattr(passata, 'generate_password', lambda l, s: l * 'x')
-
-    # Too short
-    result = run(['generate', '--length=2'])
-    assert result.exit_code == 2
-    assert 'Error' in result.output
+    monkeypatch.setattr(passata, 'generate_password',
+                        lambda l, e, s, f: l * 'x')
 
     # Generate and print
     result = run(['generate'])

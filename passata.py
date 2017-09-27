@@ -21,6 +21,7 @@
 
 import collections
 import fcntl
+import math
 import os
 import random
 import re
@@ -114,17 +115,6 @@ def to_clipboard(data, loops=0):
     call(command, input=data)
 
 
-def generate_password(length, symbols):
-    """Generate a random password."""
-    choice = random.SystemRandom().choice
-    chargroups = [string.ascii_letters, string.digits]
-    if symbols:
-        chargroups.append(string.punctuation)
-    chars = ''.join(chargroups)
-    password = ''.join(choice(chars) for i in range(length))
-    return password
-
-
 def confirm(message, force):
     """Exit if the user does not agree."""
     if not force and not click.confirm(message):
@@ -200,6 +190,7 @@ def read_config(confpath):
         'editor': os.environ.get('EDITOR', 'vim'),
         'font': None,
         'length': 20,
+        'entropy': None,
         'symbols': True,
         'color': True,
     }
@@ -392,6 +383,7 @@ def init(obj, force, gpg_id, path):
         "[default: EDITOR or vim]\n"
         "# font: Font to use for dmenu\n"
         "# length: Default length of generated passwords [default: 20]\n"
+        "# entropy: Calculate length for given bits of entropy\n"
         "# symbols: Whether to use symbols in the generated password "
         "[default: true]\n"
         "# color: Whether to colorize the output [default: true]\n"
@@ -521,28 +513,47 @@ def insert(name, force, password):
     do_insert(name, password, force)
 
 
+def generate_password(length, entropy, symbols, force):
+    """Generate a random password."""
+    choice = random.SystemRandom().choice
+    chargroups = [string.ascii_letters, string.digits]
+    if symbols:
+        chargroups.append(string.punctuation)
+    chars = ''.join(chargroups)
+    if entropy is not None:
+        length = math.ceil(entropy / math.log2(len(chars)))
+        entropy = math.log2(len(chars) ** length)
+    else:
+        entropy = math.log2(len(chars) ** length)
+    if entropy < 32:
+        msg = "Generate password with only %.3f bits of entropy?" % entropy
+        confirm(msg, force)
+    password = ''.join(choice(chars) for i in range(length))
+    click.echo("Generated password with %.3f bits of entropy" % entropy)
+    return password
+
+
 @cli.command()
 @click.argument('name', required=False)
 @click.option('-f', '--force', is_flag=True,
               help="Do not prompt for confirmation.")
 @click.option('-c', '--clipboard', is_flag=True,
               help="Copy password to clipboard instead of printing.")
-@click.option('-l', '--length', type=click.IntRange(min=4), metavar='INT',
-              default=lambda: option('length'),
+@click.option('-l', '--length', type=int, default=lambda: option('length'),
               help="Length of the generated password.")
+@click.option('-e', '--entropy', type=int, default=lambda: option('entropy'),
+              help="Calculate length for given bits of entropy.")
 @click.option('--symbols/--no-symbols', is_flag=True,
               default=lambda: option('symbols'),
               help="Whether to use symbols in the generated password.")
-def generate(name, force, clipboard, length, symbols):
+def generate(name, force, clipboard, length, entropy, symbols):
     """Generate a random password.
 
     When overwriting an existing entry, the old password is kept in
     <old_password>.
     """
-    password = generate_password(length, symbols)
-    old_password = None
-    if name:
-        old_password = do_insert(name, password, force)
+    password = generate_password(length, entropy, symbols, force)
+    old_password = do_insert(name, password, force) if name else None
     if clipboard:
         if old_password is not None:
             to_clipboard(old_password, loops=1)
