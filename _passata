@@ -69,7 +69,8 @@ _passata() {
           _arguments -s : \
             '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
             '(-c --clipboard)'{-c,--clipboard}'[Copy password to clipboard instead of printing]' \
-            '(-l --length)'{-l,--length}'[Length of the generated password]' \
+            '(-l --length -e --entropy)'{-l,--length}'[Length of the generated password]' \
+            '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given bits of entropy]' \
             '(--symbols --no-symbols)--symbols[Use symbols in the generated password]' \
             '(--symbols --no-symbols)--no-symbols[Do not use symbols in the generated password]' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
