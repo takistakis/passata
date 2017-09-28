@@ -204,6 +204,29 @@ def read_config(confpath):
     return config
 
 
+def write_config(confpath, config, force):
+    """Write the configuration file."""
+    template = (
+        "# Configuration file for passata\n"
+        "# Available options:\n"
+        "# database: Path of the database file\n"
+        "# gpg_id: GnuPG ID used for database encryption\n"
+        "# editor: Editor used for editing database entries "
+        "[default: EDITOR or vim]\n"
+        "# font: Font to use for dmenu\n"
+        "# length: Default length of generated passwords [default: 20]\n"
+        "# entropy: Calculate length for given bits of entropy\n"
+        "# symbols: Whether to use symbols in the generated password "
+        "[default: true]\n"
+        "# color: Whether to colorize the output [default: true]\n"
+        "%s"
+    )
+    confirm_overwrite(confpath, force)
+    os.makedirs(os.path.dirname(confpath), exist_ok=True)
+    with open(confpath, 'w') as f:
+        f.write(template % to_string(config))
+
+
 def option(key):
     """Return the config option for `key`."""
     config = click.get_current_context().obj
@@ -371,33 +394,8 @@ def init(obj, force, gpg_id, path):
     confirm_overwrite(dbpath, force)
     lock_file(dbpath)
     confpath = obj['_confpath']
-    confirm_overwrite(confpath, force)
-    os.makedirs(os.path.dirname(confpath), exist_ok=True)
-
-    template = (
-        "# Configuration file for passata\n"
-        "# Available options:\n"
-        "# database: Path of the database file\n"
-        "# gpg_id: GnuPG ID used for database encryption\n"
-        "# editor: Editor used for editing database entries "
-        "[default: EDITOR or vim]\n"
-        "# font: Font to use for dmenu\n"
-        "# length: Default length of generated passwords [default: 20]\n"
-        "# entropy: Calculate length for given bits of entropy\n"
-        "# symbols: Whether to use symbols in the generated password "
-        "[default: true]\n"
-        "# color: Whether to colorize the output [default: true]\n"
-        "%s"
-    )
-
-    config = {
-        'database': dbpath,
-        'gpg_id': gpg_id,
-    }
-
-    with open(confpath, 'w') as f:
-        f.write(template % to_string(config))
-
+    config = {'database': dbpath, 'gpg_id': gpg_id}
+    write_config(confpath, config, force)
     obj.update(config)
     write_db({})
 
