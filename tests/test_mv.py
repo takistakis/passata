@@ -18,7 +18,6 @@
 """Tests for passata mv."""
 
 import click
-import pytest
 
 from tests.helpers import read, run
 
@@ -55,7 +54,6 @@ def test_mv_entries_to_entry(db):
     assert repr(result.exception) == 'SystemExit(1,)'
 
 
-@pytest.mark.xfail(reason='Entries get accidentally sorted when moved')
 def test_mv_entries_to_group(db):
     run(['mv', 'internet/reddit', 'internet/github', 'new'])
     assert read(db) == (
