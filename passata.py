@@ -151,7 +151,7 @@ def to_dict(data):
     """Turn yaml string to dict."""
     # Return empty dict for empty string or None
     if not data:
-        return {}
+        return collections.OrderedDict()
 
     class OrderedLoader(yaml.SafeLoader):
         """yaml.Loader subclass that safely loads to OrderedDict."""
@@ -325,7 +325,7 @@ def put(db, name, subdict):
     # Put a single entry
     else:
         if groupname not in db:
-            db[groupname] = {}
+            db[groupname] = collections.OrderedDict()
         db[groupname][entryname] = subdict
 
 
@@ -397,7 +397,7 @@ def init(obj, force, gpg_id, path):
     config = {'database': dbpath, 'gpg_id': gpg_id}
     write_config(confpath, config, force)
     obj.update(config)
-    write_db({})
+    write_db(collections.OrderedDict())
 
 
 @cli.command()
@@ -570,7 +570,7 @@ def generate(name, force, clipboard, length, entropy, symbols):
 def edit(name):
     """Edit entry, group or the whole database."""
     db = read_db(lock=True)
-    subdict = get(db, name) or {}
+    subdict = get(db, name) or collections.OrderedDict()
     original = to_string(subdict)
     # Describe what is being edited in a comment at the top
     comment = name or "passata database"
