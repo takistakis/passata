@@ -238,6 +238,8 @@ def default_gpg_id():
     """Return the id of the first gpg secret key."""
     command = ['gpg', '--list-secret-keys']
     gpg_ids = re.search(r'<(.*)>', out(command))
+    if gpg_ids is None:
+        die("No gpg secret keys found")
     return gpg_ids.group(1)
 
 
