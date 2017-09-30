@@ -69,7 +69,7 @@ def out(command, input=None):
     return call(command, stdout=subprocess.PIPE, input=input)
 
 
-def echo(message):
+def echo(message):  # pragma: no cover
     """Print message to stdout or via a pager if it doesn't fit on screen."""
     # Plus one line for the prompt
     if message.count('\n') + 1 >= click.get_terminal_size()[1]:
@@ -242,7 +242,7 @@ def default_gpg_id():
 
 
 # Database
-def decrypt(path):
+def decrypt(path):  # pragma: no cover
     """Decrypt the contents of the given file using gpg."""
     return out(['gpg', '-d', path])
 
@@ -258,7 +258,7 @@ def read_db(lock=False):
     return to_dict(data)
 
 
-def encrypt(data):
+def encrypt(data):  # pragma: no cover
     """Encrypt given text using gpg."""
     gpg_id = option('gpg_id')
     return out(['gpg', '-ear', gpg_id], input=data)
