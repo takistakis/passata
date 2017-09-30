@@ -17,6 +17,7 @@
 
 """Tests for passata utility functions."""
 
+import textwrap
 import time
 
 import click
@@ -61,3 +62,24 @@ def test_lock(monkeypatch, db):
     result = run(['rm', 'internet/github', '--force'])
     assert result.output == ''
     assert result.exception is None
+
+
+def test_default_gpg_id(monkeypatch):
+    monkeypatch.setattr(passata, 'out', lambda cmd: output)
+    output = textwrap.dedent("""\
+        /home/user/.gnupg/pubring.kbx
+        ------------------------------
+        sec   rsa4096 2015-02-26 [SC] [expires: 2018-12-20]
+            0123456789ABCDEF0123456789ABCDEF01234567
+        uid           [ultimate] Name Surname <mail@mail.com>
+        ssb   rsa4096 2015-02-26 [E] [expires: 2018-12-20]
+
+        sec   rsa4096 2016-01-1 [SC] [expires: 2018-1-1]
+            0123456789ABCDEF0123456789ABCDEF01234567
+        uid           [ultimate] Name Surname <mail2@mail.com>
+        ssb   rsa4096 2016-01-1 [E] [expires: 2018-1-1]""")
+    assert passata.default_gpg_id() == 'mail@mail.com'
+    # No secret keys
+    output = ''
+    with pytest.raises(SystemExit):
+        passata.default_gpg_id()
