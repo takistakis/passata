@@ -7,5 +7,6 @@ output-format=colorized
 
 [BASIC]
 argument-rgx=[a-z_][a-z0-9_]{1,30}$
+attr-rgx=[a-z_][a-z0-9_]{1,30}$
 function-rgx=[a-z_][a-z0-9_]{1,30}$
 variable-rgx=[a-z_][a-z0-9_]{0,30}$

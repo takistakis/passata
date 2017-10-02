@@ -44,7 +44,7 @@ def import_csv(ctx, config, file):
     """
     ctx.obj = passata.read_config(config)
 
-    db = collections.OrderedDict()
+    db = passata.DB()
     next(file)  # Skip headers
     for line in csv.reader(file):
         group, title, username, password, url, notes = line
@@ -61,9 +61,9 @@ def import_csv(ctx, config, file):
             entry['url'] = url
         if notes:
             entry['notes'] = notes
-        passata.put(db, name, entry)
+        db.put(name, entry)
 
-    passata.write_db(db, force=False)
+    db.write(force=False)
 
 
 if __name__ == '__main__':

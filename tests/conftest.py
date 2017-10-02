@@ -26,8 +26,8 @@ import passata
 
 @pytest.fixture
 def db(tmpdir, monkeypatch):
-    monkeypatch.setattr(passata, 'encrypt', lambda x: x)
-    monkeypatch.setattr(passata, 'decrypt', lambda x: open(x).read())
+    monkeypatch.setattr(passata.DB, 'encrypt', lambda s, x: x)
+    monkeypatch.setattr(passata.DB, 'decrypt', lambda s, x: open(x).read())
 
     confpath = tmpdir.join('config.yml')
     dbpath = tmpdir.join('passata.db')
