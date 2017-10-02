@@ -244,124 +244,133 @@ def default_gpg_id():
 
 
 # Database
-def decrypt(path):  # pragma: no cover
-    """Decrypt the contents of the given file using gpg."""
-    return out(['gpg', '-d', path])
+class DB:
+    """A passata database."""
 
+    def __init__(self):
+        self.db = collections.OrderedDict()
 
-def read_db(lock=False):
-    """Return the database as a plaintext string."""
-    dbpath = os.path.expanduser(option('database'))
-    if not os.path.isfile(dbpath):
-        die("Database file (%s) does not exist" % dbpath)
-    if lock:
-        lock_file(dbpath)
-    data = decrypt(dbpath)
-    return to_dict(data)
+    def __iter__(self):
+        for groupname in self.db:
+            for entryname in self.db[groupname]:
+                yield groupname, entryname
 
+    def groups(self):
+        """Iterate in group names."""
+        yield from self.db
 
-def encrypt(data):  # pragma: no cover
-    """Encrypt given text using gpg."""
-    gpg_id = option('gpg_id')
-    return out(['gpg', '-ear', gpg_id], input=data)
+    @staticmethod
+    def decrypt(path):  # pragma: no cover
+        """Decrypt the contents of the given file using gpg."""
+        return out(['gpg', '-d', path])
 
+    def read(self, lock=False):
+        """Return the database as a plaintext string."""
+        dbpath = os.path.expanduser(option('database'))
+        if not os.path.isfile(dbpath):
+            die("Database file (%s) does not exist" % dbpath)
+        if lock:
+            lock_file(dbpath)
+        data = self.decrypt(dbpath)
+        self.db = to_dict(data)
 
-def write_db(db, force=True):
-    """Write the database as an encrypted string."""
-    dbpath = os.path.expanduser(option('database'))
-    confirm_overwrite(dbpath, force)
-    data = to_string(db)
-    encrypted = encrypt(data)
-    # Write to a temporary file, make sure the data has reached the
-    # disk and replace the database with the temporary file using
-    # os.replace() which is guaranteed to be an atomic operation.
-    fd = tempfile.NamedTemporaryFile(
-        mode='w', dir=os.path.dirname(dbpath), delete=False)
-    fd.write(encrypted)
-    fd.flush()
-    os.fsync(fd.fileno())
-    fd.close()
-    os.replace(fd.name, dbpath)
-    # Here the lock on the database is released
+    @staticmethod
+    def encrypt(data):  # pragma: no cover
+        """Encrypt given text using gpg."""
+        gpg_id = option('gpg_id')
+        return out(['gpg', '-ear', gpg_id], input=data)
 
+    def write(self, force=True):
+        """Write the database as an encrypted string."""
+        dbpath = os.path.expanduser(option('database'))
+        confirm_overwrite(dbpath, force)
+        data = to_string(self.db)
+        encrypted = self.encrypt(data)
+        # Write to a temporary file, make sure the data has reached the
+        # disk and replace the database with the temporary file using
+        # os.replace() which is guaranteed to be an atomic operation.
+        fd = tempfile.NamedTemporaryFile(
+            mode='w', dir=os.path.dirname(dbpath), delete=False)
+        fd.write(encrypted)
+        fd.flush()
+        os.fsync(fd.fileno())
+        fd.close()
+        os.replace(fd.name, dbpath)
+        # Here the lock on the database is released
 
-def get(db, name):
-    """Return database, group or entry."""
-    groupname, entryname = split(name)
+    def get(self, name):
+        """Return database, group or entry."""
+        groupname, entryname = split(name)
 
-    # Get the whole database
-    if not groupname:
-        return db
+        # Get the whole database
+        if not groupname:
+            return self.db
 
-    # Get whole group
-    if not entryname:
-        return db.get(groupname)
+        # Get a whole group
+        if not entryname:
+            return self.db.get(groupname)
 
-    # Get single entry
-    if groupname not in db:
-        return None
+        # Entry should exist
+        if groupname not in self.db:
+            return None
 
-    return db[groupname].get(entryname)
+        # Get a single entry
+        return self.db[groupname].get(entryname)
 
+    def put(self, name, subdict):
+        """Add or replace subdict creating group if needed."""
+        # Remove if given empty dict
+        if not subdict:
+            self.pop(name)
+            return
 
-def put(db, name, subdict):
-    """Add or replace subdict creating group if needed."""
-    # Remove if given empty dict
-    if not subdict:
-        pop(db, name)
-        return
+        groupname, entryname = split(name)
 
-    groupname, entryname = split(name)
+        # Put the whole database
+        if not groupname:
+            self.db = subdict
 
-    # Put the whole database
-    if not groupname:
-        # `db = subdict` wouldn't work because it makes a local copy
-        # of `subdict` and the `db` dict of the caller stays the same.
-        db.clear()
-        db.update(subdict)
+        # Put a whole group
+        elif not entryname:
+            self.db[groupname] = subdict
 
-    # Put a whole group
-    elif not entryname:
-        db[groupname] = subdict
+        # Put a single entry
+        else:
+            if groupname not in self.db:
+                self.db[groupname] = collections.OrderedDict()
+            self.db[groupname][entryname] = subdict
 
-    # Put a single entry
-    else:
-        if groupname not in db:
-            db[groupname] = collections.OrderedDict()
-        db[groupname][entryname] = subdict
+    def pop(self, name, force=False):
+        """Remove subdict and every empty parent and return it."""
+        groupname, entryname = split(name)
 
+        # Remove the whole database
+        if not groupname:
+            confirm("Delete the whole database?", force)
+            self.db.clear()
+            # Maybe we should copy and return the original db
+            # for consistency but it's not needed anywhere.
+            return None
 
-def pop(db, name, force=False):
-    """Remove subdict and every empty parent and return it."""
-    groupname, entryname = split(name)
+        # Group should exist
+        if groupname not in self.db:
+            return None
 
-    # Remove the whole database
-    if not groupname:
-        confirm("Delete the whole database?", force)
-        db.clear()
-        # Maybe we should copy and return the original db for consistency but
-        # it's not needed anywhere.
-        return None
+        # Remove a whole group
+        if not entryname:
+            confirm("Delete group '%s'?" % groupname, force)
+            return self.db.pop(groupname)
 
-    # Group should exist
-    if groupname not in db:
-        return None
+        # Entry should exist
+        if entryname not in self.db[groupname]:
+            return None
 
-    # Remove whole group
-    if not entryname:
-        confirm("Delete group '%s'?" % groupname, force)
-        return db.pop(groupname)
-
-    # Entry should exist
-    if entryname not in db[groupname]:
-        return None
-
-    # Remove entry
-    confirm("Delete '%s/%s'?" % (groupname, entryname), force)
-    entry = db[groupname].pop(entryname)
-    if not db[groupname]:
-        del db[groupname]
-    return entry
+        # Remove a single entry
+        confirm("Delete '%s'?" % name, force)
+        entry = self.db[groupname].pop(entryname)
+        if not self.db[groupname]:
+            del self.db[groupname]
+        return entry
 
 
 # Commands
@@ -399,7 +408,8 @@ def init(obj, force, gpg_id, path):
     config = {'database': dbpath, 'gpg_id': gpg_id}
     write_config(confpath, config, force)
     obj.update(config)
-    write_db(collections.OrderedDict())
+    db = DB()
+    db.write()
 
 
 @cli.command()
@@ -411,23 +421,23 @@ def init(obj, force, gpg_id, path):
 @click.argument('group', required=False)
 def ls(group, no_tree, color):
     """List entries in a tree-like format."""
-    db = read_db()
+    db = DB()
+    db.read()
     lines = []
     if group:
         groupname = group.rstrip('/')
-        if groupname not in db:
+        if groupname not in db.groups():
             die("%s not found" % groupname)
-        for entryname in db[groupname]:
+        for entryname in db.get(groupname):
             lines.append(entryname)
     elif no_tree:
-        for groupname in db:
-            for entryname in db[groupname]:
-                lines.append("%s/%s" % (groupname, entryname))
+        for groupname, entryname in db:
+            lines.append('%s/%s' % (groupname, entryname))
     else:
-        for groupname in db:
+        for groupname in db.groups():
             lines.append(click.style(groupname, fg='blue', bold=True)
                          if color else groupname)
-            entrynames = list(db[groupname])
+            entrynames = list(db.get(groupname))
             for entryname in entrynames[:-1]:
                 lines.append("├── %s" % entryname)
             lines.append("└── %s" % entrynames[-1])
@@ -449,8 +459,9 @@ def show(name, clipboard, color):
     NAME is an entry and --clipboard is specified, the password will stay in
     the clipboard until it is pasted.
     """
-    db = read_db()
-    entry = get(db, name)
+    db = DB()
+    db.read()
+    entry = db.get(name)
     if entry is None:
         die("%s not found" % name)
 
@@ -483,11 +494,12 @@ def do_insert(name, password, force):
     """
     if isgroup(name):
         die("%s is a group" % name)
-    db = read_db(lock=True)
-    entry = get(db, name)
+    db = DB()
+    db.read(lock=True)
+    entry = db.get(name)
     old_password = None
     if entry is None:
-        put(db, name, {'password': password})
+        db.put(name, {'password': password})
     else:
         confirm("Overwrite %s?" % name, force)
         if 'password' in entry:
@@ -495,7 +507,7 @@ def do_insert(name, password, force):
             entry['old_password'] = old_password
         entry['password'] = password
 
-    write_db(db)
+    db.write()
     return old_password
 
 
@@ -571,8 +583,9 @@ def generate(name, force, clipboard, length, entropy, symbols):
 @click.argument('name', required=False)
 def edit(name):
     """Edit entry, group or the whole database."""
-    db = read_db(lock=True)
-    subdict = get(db, name) or collections.OrderedDict()
+    db = DB()
+    db.read(lock=True)
+    subdict = db.get(name) or collections.OrderedDict()
     original = to_string(subdict)
     # Describe what is being edited in a comment at the top
     comment = name or "passata database"
@@ -581,8 +594,8 @@ def edit(name):
     # If not saved or saved but unchanged do nothing
     if updated is None or original == updated.strip():
         return
-    put(db, name, to_dict(updated))
-    write_db(db)
+    db.put(name, to_dict(updated))
+    db.write()
 
 
 @cli.command()
@@ -591,20 +604,21 @@ def edit(name):
               help="Do not prompt for confirmation.")
 def rm(names, force):
     """Remove entries or groups."""
-    db = read_db(lock=True)
+    db = DB()
+    db.read(lock=True)
     if len(names) == 1:
-        if pop(db, names[0], force) is None:
+        if db.pop(names[0], force) is None:
             die("%s not found" % names[0])
-        write_db(db)
+        db.write()
         return
 
     confirm("Delete %s arguments?" % len(names), force)
 
     for name in names:
-        if pop(db, name, force=True) is None:
+        if db.pop(name, force=True) is None:
             die("%s not found" % name)
 
-    write_db(db)
+    db.write()
 
 
 @cli.command(short_help="Move or rename entries.")
@@ -614,7 +628,8 @@ def rm(names, force):
               help="Do not prompt for confirmation.")
 def mv(source, dest, force):
     """Rename SOURCE to DEST or move SOURCE(s) to GROUP."""
-    db = read_db(lock=True)
+    db = DB()
+    db.read(lock=True)
     if len(source) > 1 and not isgroup(dest):
         die("%s is not a group" % dest)
 
@@ -622,28 +637,28 @@ def mv(source, dest, force):
         if not isgroup(dest):
             die("%s is not a group" % dest)
         groupname = source[0]
-        if get(db, groupname) is None:
+        if db.get(groupname) is None:
             die("%s not found" % groupname)
-        if get(db, dest) is not None:
+        if db.get(dest) is not None:
             # Do not implicitly remove a whole group even by asking the
             # user. Instead we could prompt for merging the two groups.
             die("%s already exists" % dest)
-        group = pop(db, groupname, force=True)
-        put(db, dest, group)
+        group = db.pop(groupname, force=True)
+        db.put(dest, group)
     else:
         for name in source:
-            if get(db, name) is None:
+            if db.get(name) is None:
                 die("%s not found" % name)
             # os.path.join() because using '/'.join('groupname/', 'entryname')
             # would result in two slashes.
             newname = os.path.join(dest, split(name)[1]) \
                 if isgroup(dest) else dest
-            if get(db, newname) is not None:
+            if db.get(newname) is not None:
                 confirm("Overwrite %s?" % newname, force)
-            entry = pop(db, name, force=True)
-            put(db, newname, entry)
+            entry = db.pop(name, force=True)
+            db.put(newname, entry)
 
-    write_db(db)
+    db.write()
 
 
 # Autotype
@@ -696,23 +711,23 @@ def get_autotype(entry):
 @cli.command()
 def autotype():
     """Type login credentials."""
-    db = read_db()
+    db = DB()
+    db.read()
     window = active_window()
 
     # Put the entries that match the window title in `matches`, and every entry
     # in `names`, to fall back to that if there are no matches.
     names = []
     matches = []
-    for groupname in sorted(db):
-        for entryname in sorted(db[groupname]):
-            name = '%s/%s' % (groupname, entryname)
-            names.append(name)
-            entry = get(db, name)
-            keywords = [entryname.lower()]
-            keywords.extend(get_keywords(entry))
-            title = window[1].lower()
-            if any(keyword in title for keyword in keywords):
-                matches.append(name)
+    for groupname, entryname in db:
+        name = '%s/%s' % (groupname, entryname)
+        names.append(name)
+        entry = db.get(name)
+        keywords = [entryname.lower()]
+        keywords.extend(get_keywords(entry))
+        title = window[1].lower()
+        if any(keyword in title for keyword in keywords):
+            matches.append(name)
 
     if len(matches) == 1:
         choice = matches[0].strip()
@@ -722,7 +737,7 @@ def autotype():
         choices = '\n'.join(sorted(matches if matches else names))
         choice = out(command, input=choices).strip()
 
-    entry = get(db, choice)
+    entry = db.get(choice)
     for key in get_autotype(entry):
         if active_window() != window:  # pragma: no cover
             xdie("Window has changed")
