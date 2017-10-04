@@ -69,13 +69,24 @@ def out(command, input=None):
     return call(command, stdout=subprocess.PIPE, input=input)
 
 
-def echo(message):  # pragma: no cover
-    """Print message to stdout or via a pager if it doesn't fit on screen."""
+def echo(data, color=False):
+    """Print data to stdout or via a pager if it doesn't fit on screen."""
+    if color:
+        # Bright blue key (color 12) and bright yellow colon (color 11).
+        # Colors are applied manually using ANSI escape codes because
+        # click.style does not support bright colors. The key ends at the
+        # first colon that is followed by either a space or a newline.
+        data = re.sub(r'(^\s*.*?):(\s)',
+                      r'\033[38;5;12m\1\033[38;5;11m:\033[0m\2',
+                      data, flags=re.MULTILINE)
+        data = re.sub(r'(^\s*-\s)', r'\033[38;5;9m\1\033[0m',
+                      data, flags=re.MULTILINE)
+    _, terminal_lines = click.get_terminal_size()
     # Plus one line for the prompt
-    if message.count('\n') + 1 >= click.get_terminal_size()[1]:
-        click.echo_via_pager(message)
+    if data.count('\n') + 1 >= terminal_lines:  # pragma: no cover
+        click.echo_via_pager(data)
     else:
-        click.echo(message)
+        click.echo(data)
 
 
 def die(message):
@@ -372,6 +383,40 @@ class DB:
             del self.db[groupname]
         return entry
 
+    def list(self, group=None, no_tree=False, color=True):
+        """List entries in a tree-like format."""
+        lines = []
+        if group:
+            groupname = group.rstrip('/')
+            if groupname not in self.groups():
+                die("%s not found" % groupname)
+            for entryname in self.get(groupname):
+                lines.append(entryname)
+        elif no_tree:
+            for groupname, entryname in self:
+                lines.append('%s/%s' % (groupname, entryname))
+        else:
+            for groupname in self.groups():
+                lines.append(click.style(groupname, fg='blue', bold=True)
+                             if color else groupname)
+                entrynames = list(self.get(groupname))
+                for entryname in entrynames[:-1]:
+                    lines.append("├── %s" % entryname)
+                lines.append("└── %s" % entrynames[-1])
+        if lines:
+            echo('\n'.join(lines))
+
+    def keywords(self, name):
+        """Return the entry's keywords field as a list of strings."""
+        entry = self.get(name)
+        assert entry is not None
+        keywords = entry.get('keywords')
+        if isinstance(keywords, list):
+            return [str(keyword).lower() for keyword in keywords]
+        elif keywords is not None:
+            return [str(keywords).lower()]
+        return []
+
 
 # Commands
 @click.group(context_settings={'help_option_names': ['-h', '--help']})
@@ -423,26 +468,37 @@ def ls(group, no_tree, color):
     """List entries in a tree-like format."""
     db = DB()
     db.read()
-    lines = []
-    if group:
-        groupname = group.rstrip('/')
-        if groupname not in db.groups():
-            die("%s not found" % groupname)
-        for entryname in db.get(groupname):
-            lines.append(entryname)
-    elif no_tree:
-        for groupname, entryname in db:
-            lines.append('%s/%s' % (groupname, entryname))
+    db.list(group, no_tree, color)
+
+
+@cli.command()
+@click.option('-n', '--no-tree', is_flag=True,
+              help="Print entries in 'groupname/entryname' format.")
+@click.option('--color/--no-color', is_flag=True,
+              default=lambda: option('color'),
+              help="Whether to colorize the output.")
+@click.option('-s', '--show', 'show_', is_flag=True, default=False,
+              help="Whether to show the found entries.")
+@click.argument('names', nargs=-1)
+def find(names, no_tree, color, show_):
+    """List matching entries in a tree-like format."""
+    db = DB()
+    db.read()
+    names = [name.lower() for name in names]
+    matches = DB()
+    for groupname, entryname in db:
+        name = '%s/%s' % (groupname, entryname)
+        if any(name in entryname.lower() for name in names):
+            matches.put(name, db.get(name))
+            continue
+        for keyword in db.keywords(name):
+            if any(name in keyword for name in names):
+                matches.put('%s (%s)' % (name, keyword), db.get(name))
+                break
+    if show_:
+        echo(to_string(matches.db).strip(), color)
     else:
-        for groupname in db.groups():
-            lines.append(click.style(groupname, fg='blue', bold=True)
-                         if color else groupname)
-            entrynames = list(db.get(groupname))
-            for entryname in entrynames[:-1]:
-                lines.append("├── %s" % entryname)
-            lines.append("└── %s" % entrynames[-1])
-    if lines:
-        echo('\n'.join(lines))
+        matches.list(no_tree=no_tree, color=color)
 
 
 @cli.command(short_help="Show entry, group or the whole database.")
@@ -472,18 +528,7 @@ def show(name, clipboard, color):
             die("Can't put the entire group to clipboard")
         to_clipboard(entry['password'], loops=1)
     else:
-        data = to_string(entry).strip()
-        if color:
-            # Bright blue key (color 12) and bright yellow colon (color 11).
-            # Colors are applied manually using ANSI escape codes because
-            # click.style does not support bright colors. The key ends at the
-            # first colon that is followed by either a space or a newline.
-            data = re.sub(r'(^\s*.*?):(\s)',
-                          r'\033[38;5;12m\1\033[38;5;11m:\033[0m\2',
-                          data, flags=re.MULTILINE)
-            data = re.sub(r'(^\s*-\s)', r'\033[38;5;9m\1\033[0m',
-                          data, flags=re.MULTILINE)
-        echo(data)
+        echo(to_string(entry).strip(), color)
 
 
 def do_insert(name, password, force):
@@ -684,16 +729,6 @@ def keyboard(key, entry):
         call(['xdotool', 'key', key])
 
 
-def get_keywords(entry):
-    """Return a list of strings to search for in the window's title."""
-    keywords = entry.get('keywords')
-    if isinstance(keywords, list):
-        return [str(keyword).lower() for keyword in keywords]
-    elif keywords is not None:
-        return [str(keywords).lower()]
-    return []
-
-
 def get_autotype(entry):
     """Return a list with the items that need to be typed."""
     data = entry.get('autotype')
@@ -722,9 +757,7 @@ def autotype():
     for groupname, entryname in db:
         name = '%s/%s' % (groupname, entryname)
         names.append(name)
-        entry = db.get(name)
-        keywords = [entryname.lower()]
-        keywords.extend(get_keywords(entry))
+        keywords = [entryname.lower()] + db.keywords(name)
         title = window[1].lower()
         if any(keyword in title for keyword in keywords):
             matches.append(name)

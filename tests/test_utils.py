@@ -83,3 +83,30 @@ def test_default_gpg_id(monkeypatch):
     output = ''
     with pytest.raises(SystemExit):
         passata.default_gpg_id()
+
+
+def test_keywords():
+    db = passata.DB()
+
+    # The `keywords` field is empty
+    db.put('internet/reddit', {
+        'username': 'takis',
+        'password': 'pass',
+    })
+    assert db.keywords('internet/reddit') == []
+
+    # The `keywords` field contains a string
+    db.put('internet/reddit', {
+        'username': 'takis',
+        'password': 'pass',
+        'keywords': 'Keyword'
+    })
+    assert db.keywords('internet/reddit') == ['keyword']
+
+    # The `keywords` field contains a list of strings
+    db.put('internet/reddit', {
+        'username': 'takis',
+        'password': 'pass',
+        'keywords': ['Google', 'YouTube', 'Gmail']
+    })
+    assert db.keywords('internet/reddit') == ['google', 'youtube', 'gmail']

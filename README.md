@@ -50,6 +50,7 @@ script.
     Commands:
       autotype  Type login credentials.
       edit      Edit entry, group or the whole database.
+      find      List matching entries in a tree-like format.
       generate  Generate a random password.
       init      Initialize password database.
       insert    Insert a new password.
