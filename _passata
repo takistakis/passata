@@ -17,6 +17,7 @@ _passata() {
       subcommands=(
         'init:Initialize password database'
         'ls:List entries in a tree-like format'
+        'find:List matching entries in a tree-like format'
         'show:Show entry, group or the whole database'
         'insert:Insert a new password'
         'generate:Generate a random password'
@@ -46,6 +47,15 @@ _passata() {
             '(--color --no-color)--no-color[Do not colorize the output]' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_groups
+          ;;
+
+        find)
+          _arguments -s : \
+            '(-n --no-tree)'{-n,--no-tree}'[Print entries in <group>/<name> format]' \
+            '(--color --no-color)--color[Colorize the output]' \
+            '(--color --no-color)--no-color[Do not colorize the output]' \
+            '(-s --show)'{-s,--show}'[Whether to show the found entries]' \
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
           ;;
 
         show)
