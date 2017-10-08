@@ -70,7 +70,7 @@ _passata() {
         insert)
           _arguments -s : \
             '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
-            '--password[Give password instead of being prompted for it]' \
+            '--password[Give password instead of being prompted for it]:password:' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;
@@ -79,8 +79,8 @@ _passata() {
           _arguments -s : \
             '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
             '(-c --clipboard)'{-c,--clipboard}'[Copy password to clipboard instead of printing]' \
-            '(-l --length -e --entropy)'{-l,--length}'[Length of the generated password]' \
-            '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given bits of entropy]' \
+            '(-l --length -e --entropy)'{-l,--length}'[Length of the generated password]:int:' \
+            '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given bits of entropy]:int:' \
             '(--symbols --no-symbols)--symbols[Use symbols in the generated password]' \
             '(--symbols --no-symbols)--no-symbols[Do not use symbols in the generated password]' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
