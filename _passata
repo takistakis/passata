@@ -81,8 +81,9 @@ _passata() {
             '(-c --clipboard)'{-c,--clipboard}'[Copy password to clipboard instead of printing]' \
             '(-l --length -e --entropy)'{-l,--length}'[Length of the generated password]:int:' \
             '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given bits of entropy]:int:' \
-            '(--symbols --no-symbols)--symbols[Use symbols in the generated password]' \
-            '(--symbols --no-symbols)--no-symbols[Do not use symbols in the generated password]' \
+            '(--symbols --no-symbols -w --wordlist)--symbols[Use symbols in the generated password]' \
+            '(--symbols --no-symbols -w --wordlist)--no-symbols[Do not use symbols in the generated password]' \
+            '(-w --wordlist --symbols --no-symbols)'{-w,--wordlist}'[List of words for passphrase generation]:file:_files' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;

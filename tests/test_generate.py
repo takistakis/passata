@@ -32,7 +32,7 @@ SYMBOLS = '!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
 
 def test_generate_password_length_no_symbols():
     password = passata.generate_password(
-        length=10, entropy=None, symbols=False, force=False)
+        length=10, entropy=None, symbols=False, wordlist=None, force=False)
     assert len(password) == 10
     assert all(char in ALPHANUMERIC for char in password)
     assert not any(char in password for char in SYMBOLS)
@@ -40,20 +40,20 @@ def test_generate_password_length_no_symbols():
 
 def test_generate_password_length_symbols():
     password = passata.generate_password(
-        length=17, entropy=None, symbols=True, force=False)
+        length=17, entropy=None, symbols=True, wordlist=None, force=False)
     assert len(password) == 17
     assert all(char in ALPHANUMERIC + SYMBOLS for char in password)
 
 
 def test_generate_password_entropy_no_symbols():
     password = passata.generate_password(
-        length=None, entropy=128, symbols=False, force=False)
+        length=None, entropy=128, symbols=False, wordlist=None, force=False)
     assert len(password) == 22
 
 
 def test_generate_password_entropy_symbols():
     password = passata.generate_password(
-        length=None, entropy=128, symbols=True, force=False)
+        length=None, entropy=128, symbols=True, wordlist=None, force=False)
     assert len(password) == 20
 
 
@@ -63,17 +63,37 @@ def test_generate_password_short(monkeypatch):
     confirm = False
     with pytest.raises(SystemExit):
         password = passata.generate_password(
-            length=4, entropy=None, symbols=True, force=False)
+            length=4, entropy=None, symbols=True, wordlist=None, force=False)
     # Confirm
     confirm = True
     password = passata.generate_password(
-        length=4, entropy=None, symbols=True, force=False)
+        length=4, entropy=None, symbols=True, wordlist=None, force=False)
     assert len(password) == 4
+
+
+def test_generate_passphrase(tmpdir):
+    words = ['asdf', 'test', 'piou']
+    wordlist = tmpdir.join('words')
+    wordlist.write('\n'.join(words))
+    path = str(wordlist)
+    passphrase = passata.generate_password(
+        length=5, entropy=None, symbols=True, wordlist=path, force=True)
+    passphrase = passphrase.split()
+    assert len(passphrase) == 5
+    assert all(word in words for word in passphrase)
+
+
+def test_generate_passphrase_file_not_found(tmpdir):
+    wordlist = tmpdir.join('words')
+    path = str(wordlist)
+    with pytest.raises(SystemExit):
+        passata.generate_password(
+            length=5, entropy=None, symbols=True, wordlist=path, force=True)
 
 
 def test_generate(monkeypatch, db):
     monkeypatch.setattr(passata, 'generate_password',
-                        lambda l, e, s, f: l * 'x')
+                        lambda l, e, s, w, f: l * 'x')
 
     # Generate and print
     result = run(['generate'])
@@ -81,8 +101,8 @@ def test_generate(monkeypatch, db):
 
     # Generate and put to clipboard
     result = run(['generate', '--clipboard'])
-    assert result.output == ("Put generated password to clipboard "
-                             "(will disappear after pasted twice)\n")
+    assert result.output == ("Put generated password to clipboard. "
+                             "Will clear after pasted twice.\n")
     assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
     assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
     with pytest.raises(SystemExit):
@@ -95,13 +115,13 @@ def test_generate(monkeypatch, db):
     # Generate, put in existing entry and put to clipboard
     monkeypatch.setattr(click, 'pause',
                         lambda: print("Press any key to continue ..."))
-    result = run(['generate', 'asdf/test', '--length=7', '--force',
-                  '--clipboard'])
-    assert result.output == ("Put old password to clipboard "
-                             "(will disappear after pasted)\n"
-                             "Press any key to continue ...\n"
-                             "Put generated password to clipboard "
-                             "(will disappear after pasted twice)\n")
+    result = run(
+        ['generate', 'asdf/test', '--length=7', '--force', '--clipboard'])
+    assert result.output == (
+        "Put old password to clipboard. Will clear after pasted.\n"
+        "Press any key to continue ...\n"
+        "Put generated password to clipboard. Will clear after pasted twice.\n"
+    )
     assert clipboard() == 'xxxxxxx'
     assert clipboard() == 'xxxxxxx'
     with pytest.raises(SystemExit):

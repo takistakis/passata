@@ -203,6 +203,7 @@ def read_config(confpath):
         'length': 20,
         'entropy': None,
         'symbols': True,
+        'wordlist': None,
         'color': True,
     }
     try:
@@ -229,6 +230,7 @@ def write_config(confpath, config, force):
         "# entropy: Calculate length for given bits of entropy\n"
         "# symbols: Whether to use symbols in the generated password "
         "[default: true]\n"
+        "# wordlist: List of words for passphrase generation\n"
         "# color: Whether to colorize the output [default: true]\n"
         "%s"
     )
@@ -571,22 +573,30 @@ def insert(name, force, password):
     do_insert(name, password, force)
 
 
-def generate_password(length, entropy, symbols, force):
+def generate_password(length, entropy, symbols, wordlist, force):
     """Generate a random password."""
     choice = random.SystemRandom().choice
-    chargroups = [string.ascii_letters, string.digits]
-    if symbols:
-        chargroups.append(string.punctuation)
-    chars = ''.join(chargroups)
-    if entropy is not None:
-        length = math.ceil(entropy / math.log2(len(chars)))
-        entropy = math.log2(len(chars) ** length)
+    if wordlist:
+        try:
+            with open(wordlist) as f:
+                pool = f.read().strip().split('\n')
+        except FileNotFoundError:
+            die("%s: No such file or directory" % wordlist)
     else:
-        entropy = math.log2(len(chars) ** length)
+        chargroups = [string.ascii_letters, string.digits]
+        if symbols:
+            chargroups.append(string.punctuation)
+        pool = ''.join(chargroups)
+    if entropy is not None:
+        length = math.ceil(entropy / math.log2(len(pool)))
+        entropy = math.log2(len(pool) ** length)
+    else:
+        entropy = math.log2(len(pool) ** length)
     if entropy < 32:
         msg = "Generate password with only %.3f bits of entropy?" % entropy
         confirm(msg, force)
-    password = ''.join(choice(chars) for i in range(length))
+    sep = ' ' if wordlist else ''
+    password = sep.join(choice(pool) for i in range(length))
     click.echo("Generated password with %.3f bits of entropy" % entropy)
     return password
 
@@ -604,23 +614,25 @@ def generate_password(length, entropy, symbols, force):
 @click.option('--symbols/--no-symbols', is_flag=True,
               default=lambda: option('symbols'),
               help="Whether to use symbols in the generated password.")
-def generate(name, force, clipboard, length, entropy, symbols):
+@click.option('-w', '--wordlist', type=click.Path(dir_okay=False),
+              help=("List of words for passphrase generation."))
+def generate(name, force, clipboard, length, entropy, symbols, wordlist):
     """Generate a random password.
 
     When overwriting an existing entry, the old password is kept in
     <old_password>.
     """
-    password = generate_password(length, entropy, symbols, force)
+    password = generate_password(length, entropy, symbols, wordlist, force)
     old_password = do_insert(name, password, force) if name else None
     if clipboard:
         if old_password is not None:
             to_clipboard(old_password, loops=1)
-            click.echo("Put old password to clipboard "
-                       "(will disappear after pasted)")
+            click.echo("Put old password to clipboard. "
+                       "Will clear after pasted.")
             click.pause()
         to_clipboard(password, loops=2)
-        click.echo("Put generated password to clipboard "
-                   "(will disappear after pasted twice)")
+        click.echo("Put generated password to clipboard. "
+                   "Will clear after pasted twice.")
     else:
         click.echo(password)
 
