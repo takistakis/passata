@@ -55,9 +55,9 @@ def call(command, stdout=None, input=None):
             universal_newlines=True
         ).stdout
     except subprocess.CalledProcessError as e:
-        die(e)
+        sys.exit(e)
     except FileNotFoundError:
-        die("Executable '%s' not found" % command[0])
+        sys.exit("Executable '%s' not found" % command[0])
 
 
 def out(command, input=None):
@@ -90,13 +90,7 @@ def echo(data, color=False):
 
 
 def die(message):
-    """Print given message to stderr and exit."""
-    click.echo(message, file=sys.stderr)
-    sys.exit(1)
-
-
-def xdie(message):
-    """Send a notification with given message and exit."""
+    """Send a notification with the given message and exit."""
     icon = 'dialog-warning'
     call(['notify-send', '-i', icon, 'passata', message])
     sys.exit(1)
@@ -114,7 +108,7 @@ def lock_file(path):
     try:
         fcntl.lockf(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except IOError:
-        die("Another passata process is editing the database")
+        sys.exit("Another passata process is editing the database")
 
     # Register the lock file's file descriptor to prevent it from closing
     click.get_current_context().obj['_lock'] = lock
@@ -153,7 +147,7 @@ def split(name):
         try:
             groupname, entryname = name.split('/')
         except ValueError:
-            die("%s is nested too deeply" % name)
+            sys.exit("%s is nested too deeply" % name)
 
     return groupname, entryname
 
@@ -210,7 +204,7 @@ def read_config(confpath):
         with open(confpath) as f:
             data = f.read()
     except FileNotFoundError:
-        die("Run `passata init` first")
+        sys.exit("Run `passata init` first")
 
     config.update(to_dict(data))
     return config
@@ -252,7 +246,7 @@ def default_gpg_id():
     command = ['gpg', '--list-secret-keys']
     gpg_ids = re.search(r'<(.*)>', out(command))
     if gpg_ids is None:
-        die("No gpg secret keys found")
+        sys.exit("No gpg secret keys found")
     return gpg_ids.group(1)
 
 
@@ -281,7 +275,7 @@ class DB:
         """Return the database as a plaintext string."""
         dbpath = os.path.expanduser(option('database'))
         if not os.path.isfile(dbpath):
-            die("Database file (%s) does not exist" % dbpath)
+            sys.exit("Database file (%s) does not exist" % dbpath)
         if lock:
             lock_file(dbpath)
         data = self.decrypt(dbpath)
@@ -391,7 +385,7 @@ class DB:
         if group:
             groupname = group.rstrip('/')
             if groupname not in self.groups():
-                die("%s not found" % groupname)
+                sys.exit("%s not found" % groupname)
             for entryname in self.get(groupname):
                 lines.append(entryname)
         elif no_tree:
@@ -521,13 +515,13 @@ def show(name, clipboard, color):
     db.read()
     entry = db.get(name)
     if entry is None:
-        die("%s not found" % name)
+        sys.exit("%s not found" % name)
 
     if clipboard:
         if name is None:
-            die("Can't put the entire database to clipboard")
+            sys.exit("Can't put the entire database to clipboard")
         if isgroup(name):
-            die("Can't put the entire group to clipboard")
+            sys.exit("Can't put the entire group to clipboard")
         to_clipboard(entry['password'], loops=1)
     else:
         echo(to_string(entry).strip(), color)
@@ -540,7 +534,7 @@ def do_insert(name, password, force):
     Return the old password or None if there wasn't one.
     """
     if isgroup(name):
-        die("%s is a group" % name)
+        sys.exit("%s is a group" % name)
     db = DB()
     db.read(lock=True)
     entry = db.get(name)
@@ -580,7 +574,7 @@ def generate_password(length, entropy, symbols, wordlist, force):
             with open(wordlist) as f:
                 pool = f.read().strip().split('\n')
         except FileNotFoundError:
-            die("%s: No such file or directory" % wordlist)
+            sys.exit("%s: No such file or directory" % wordlist)
     else:
         chargroups = [string.ascii_letters, string.digits]
         if symbols:
@@ -665,7 +659,7 @@ def rm(names, force):
     db.read(lock=True)
     if len(names) == 1:
         if db.pop(names[0], force) is None:
-            die("%s not found" % names[0])
+            sys.exit("%s not found" % names[0])
         db.write()
         return
 
@@ -673,7 +667,7 @@ def rm(names, force):
 
     for name in names:
         if db.pop(name, force=True) is None:
-            die("%s not found" % name)
+            sys.exit("%s not found" % name)
 
     db.write()
 
@@ -688,24 +682,24 @@ def mv(source, dest, force):
     db = DB()
     db.read(lock=True)
     if len(source) > 1 and not isgroup(dest):
-        die("%s is not a group" % dest)
+        sys.exit("%s is not a group" % dest)
 
     if len(source) == 1 and isgroup(source[0]):
         if not isgroup(dest):
-            die("%s is not a group" % dest)
+            sys.exit("%s is not a group" % dest)
         groupname = source[0]
         if db.get(groupname) is None:
-            die("%s not found" % groupname)
+            sys.exit("%s not found" % groupname)
         if db.get(dest) is not None:
             # Do not implicitly remove a whole group even by asking the
             # user. Instead we could prompt for merging the two groups.
-            die("%s already exists" % dest)
+            sys.exit("%s already exists" % dest)
         group = db.pop(groupname, force=True)
         db.put(dest, group)
     else:
         for name in source:
             if db.get(name) is None:
-                die("%s not found" % name)
+                sys.exit("%s not found" % name)
             # os.path.join() because using '/'.join('groupname/', 'entryname')
             # would result in two slashes.
             newname = os.path.join(dest, split(name)[1]) \
@@ -731,7 +725,7 @@ def keyboard(key, entry):
     if key[0] == '<' and key[-1] == '>':
         value = entry.get(key[1:-1])
         if not value:
-            xdie("%s not found" % key[1:-1])
+            die("%s not found" % key[1:-1])
         # `value` could be an int so we explicitly convert it to str
         call(['xdotool', 'type', '--clearmodifiers', str(value)])
     elif key[0] == '!':
@@ -750,7 +744,7 @@ def get_autotype(entry):
         elif entry.get('password'):
             data = '<password> Return'
         else:
-            xdie("Don't know what to type :(")
+            die("Don't know what to type :(")
 
     return data.split()
 
@@ -785,7 +779,7 @@ def autotype():
     entry = db.get(choice)
     for key in get_autotype(entry):
         if active_window() != window:  # pragma: no cover
-            xdie("Window has changed")
+            die("Window has changed")
         keyboard(key, entry)
 
 

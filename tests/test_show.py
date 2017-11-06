@@ -35,12 +35,13 @@ def test_show(db):
 
     # Try to show a nonexistent entry
     result = run(['show', 'internet/nonexistent'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/nonexistent not found\n"
 
     # Try to show an entry three levels deep
     result = run(['show', 'one/two/three'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "one/two/three is nested too deeply\n"
 
     # Clipboard
     result = run(['show', 'internet/github', '--clipboard'])
@@ -52,12 +53,12 @@ def test_show(db):
 
     # Try to put the whole database to clipboard
     result = run(['show', '--clipboard'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
     assert result.output == "Can't put the entire database to clipboard\n"
 
     # Try to put a whole group to clipboard
     result = run(['show', 'internet', '--clipboard'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
     assert result.output == "Can't put the entire group to clipboard\n"
 
     # Show group

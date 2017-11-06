@@ -45,4 +45,5 @@ def test_ls(db):
 
     # Nonexistent group
     result = run(['ls', 'nonexistent'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "nonexistent not found\n"
