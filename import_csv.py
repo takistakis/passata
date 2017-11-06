@@ -22,6 +22,7 @@
 import collections
 import csv
 import os.path
+import sys
 
 import click
 
@@ -49,7 +50,7 @@ def import_csv(ctx, config, file):
     for line in csv.reader(file):
         group, title, username, password, url, notes = line
         if not group.startswith('Root/'):
-            passata.die("Every entry should be in a group")
+            sys.exit("Every entry should be in a group")
         group = group[5:]  # Skip 'Root/'
         name = '/'.join([group, title])
         entry = collections.OrderedDict()

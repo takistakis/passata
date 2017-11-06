@@ -34,7 +34,8 @@ def test_rm_entry(monkeypatch, db):
 
     # Remove nonexistent entry
     result = run(['rm', 'internet/nonexistent'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "internet/nonexistent not found\n"
 
     # Do not confirm removal
     monkeypatch.setattr(click, 'confirm', lambda m: False)
@@ -56,12 +57,14 @@ def test_rm_entries(db):
     assert read(db) == ''
 
     result = run(['rm', '--force', 'asdf/asdf', 'asdf/asdf2'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "asdf/asdf not found\n"
 
 
 def test_rm_group(db):
     result = run(['rm', '--force', 'asdf'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "asdf not found\n"
 
     run(['rm', '--force', 'internet'])
     assert read(db) == ''

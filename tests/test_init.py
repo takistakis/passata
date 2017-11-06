@@ -34,7 +34,7 @@ def test_init(tmpdir, monkeypatch):
 
     # Try to execute a command without having initialized passata
     result = run(['--config', str(confpath), 'ls'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
     assert result.output == "Run `passata init` first\n"
     assert not os.path.isfile(str(dbpath))
 
@@ -69,5 +69,5 @@ def test_init(tmpdir, monkeypatch):
     # Try again after deleting the database and it should fail
     os.unlink(str(dbpath))
     result = run(['--config', str(confpath), 'ls'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
     assert result.output == "Database file (%s) does not exist\n" % dbpath

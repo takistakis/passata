@@ -51,7 +51,8 @@ def test_mv_entry_to_group(db):
 
 def test_mv_entries_to_entry(db):
     result = run(['mv', 'internet/reddit', 'internet/github', 'new/new'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "new/new is not a group\n"
 
 
 def test_mv_entries_to_group(db):
@@ -82,27 +83,27 @@ def test_mv_group_to_group(db):
 
 def test_mv_group_to_entry(db):
     result = run(['mv', 'internet', 'internet/github'])
+    assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/github is not a group\n"
-    assert repr(result.exception) == 'SystemExit(1,)'
 
 
 def test_mv_nonexistent_entry(db):
     result = run(['mv', 'internet/nonexistent', 'group'])
+    assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/nonexistent not found\n"
-    assert repr(result.exception) == 'SystemExit(1,)'
 
 
 def test_mv_nonexistent_group(db):
     result = run(['mv', 'nonexistent', 'group'])
+    assert isinstance(result.exception, SystemExit)
     assert result.output == "nonexistent not found\n"
-    assert repr(result.exception) == 'SystemExit(1,)'
 
 
 def test_mv_group_to_existing_group(db):
     run(['insert', 'group/test', '--password=pass'])
     result = run(['mv', 'group', 'internet'])
+    assert isinstance(result.exception, SystemExit)
     assert result.output == "internet already exists\n"
-    assert repr(result.exception) == 'SystemExit(1,)'
 
 
 def test_mv_overwrite(monkeypatch, db):

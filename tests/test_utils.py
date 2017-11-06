@@ -52,8 +52,8 @@ def test_lock(monkeypatch, db):
     time.sleep(0.5)
 
     result = run(['rm', 'internet/github', '--force'])
+    assert isinstance(result.exception, SystemExit)
     assert result.output == "Another passata process is editing the database\n"
-    assert repr(result.exception) == 'SystemExit(1,)'
 
     result = ff.waitfinish()
     assert result.exitstatus == 0

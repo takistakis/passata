@@ -27,7 +27,7 @@ def test_insert(monkeypatch, db):
 
     # Try to insert group
     result = run(['insert', 'group', '--password=...'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
     assert result.output == 'group is a group\n'
 
     # Insert entry
