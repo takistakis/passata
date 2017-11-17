@@ -193,7 +193,7 @@ def read_config(confpath):
     """Read the configuration file and return it as a dict."""
     config = {
         'editor': os.environ.get('EDITOR', 'vim'),
-        'font': None,
+        'dmenu': ['dmenu'],
         'length': 20,
         'entropy': None,
         'symbols': True,
@@ -219,7 +219,8 @@ def write_config(confpath, config, force):
         "# gpg_id: GnuPG ID used for database encryption\n"
         "# editor: Editor used for editing database entries "
         "[default: EDITOR or vim]\n"
-        "# font: Font to use for dmenu\n"
+        "# dmenu: dmenu provider command with optional arguments "
+        "[default: ['dmenu']]\n"
         "# length: Default length of generated passwords [default: 20]\n"
         "# entropy: Calculate length for given bits of entropy\n"
         "# symbols: Whether to use symbols in the generated password "
@@ -771,8 +772,7 @@ def autotype():
     if len(matches) == 1:
         choice = matches[0].strip()
     else:
-        font = option('font')
-        command = ['dmenu'] if font is None else ['dmenu', '-fn', font]
+        command = option('dmenu')
         choices = '\n'.join(sorted(matches if matches else names))
         choice = out(command, input=choices).strip()
 
