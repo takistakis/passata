@@ -602,7 +602,8 @@ def generate_password(length, entropy, symbols, wordlist, force):
               help="Do not prompt for confirmation.")
 @click.option('-c', '--clipboard', is_flag=True,
               help="Copy password to clipboard instead of printing.")
-@click.option('-l', '--length', type=int, default=lambda: option('length'),
+@click.option('-l', '--length', type=click.IntRange(1),
+              default=lambda: option('length'),
               help="Length of the generated password.")
 @click.option('-e', '--entropy', type=int, default=lambda: option('entropy'),
               help="Calculate length for given bits of entropy.")
