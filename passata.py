@@ -114,9 +114,9 @@ def lock_file(path):
     click.get_current_context().obj['_lock'] = lock
 
 
-def to_clipboard(data, loops=0):
-    """Add `data` to clipbord until pasted `loops` times."""
-    command = ['xclip', '-selection', 'clipboard', '-loops', str(loops)]
+def to_clipboard(data, timeout):
+    """Put `data` to clipbord until `timeout` seconds pass."""
+    command = ['xsel', '-i', '-b', '-t', str(timeout * 1000)]
     call(command, input=data)
 
 
@@ -199,6 +199,7 @@ def read_config(confpath):
         'symbols': True,
         'wordlist': None,
         'color': True,
+        'timeout': 45,
     }
     try:
         with open(confpath) as f:
@@ -227,6 +228,8 @@ def write_config(confpath, config, force):
         "[default: true]\n"
         "# wordlist: List of words for passphrase generation\n"
         "# color: Whether to colorize the output [default: true]\n"
+        "# timeout: Number of seconds until the clipboard is cleared "
+        "[default: 45]\n"
         "%s"
     )
     confirm_overwrite(confpath, force)
@@ -523,7 +526,7 @@ def show(name, clipboard, color):
             sys.exit("Can't put the entire database to clipboard")
         if isgroup(name):
             sys.exit("Can't put the entire group to clipboard")
-        to_clipboard(entry['password'], loops=1)
+        to_clipboard(entry['password'], timeout=option('timeout'))
     else:
         echo(to_string(entry).strip(), color)
 
@@ -621,13 +624,13 @@ def generate(name, force, clipboard, length, entropy, symbols, wordlist):
     old_password = do_insert(name, password, force) if name else None
     if clipboard:
         if old_password is not None:
-            to_clipboard(old_password, loops=1)
-            click.echo("Put old password to clipboard. "
-                       "Will clear after pasted.")
+            to_clipboard(old_password, timeout=0)
+            click.echo("Put old password to clipboard.")
             click.pause()
-        to_clipboard(password, loops=2)
+        timeout = option('timeout')
+        to_clipboard(password, timeout=timeout)
         click.echo("Put generated password to clipboard. "
-                   "Will clear after pasted twice.")
+                   "Will clear after %s seconds." % timeout)
     else:
         click.echo(password)
 

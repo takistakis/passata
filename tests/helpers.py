@@ -32,5 +32,5 @@ def run(args):
 
 
 def clipboard():
-    command = ['xclip', '-o', '-selection', 'clipboard']
+    command = ['xsel', '-o', '-b']
     return passata.out(command)

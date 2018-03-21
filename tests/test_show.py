@@ -20,7 +20,6 @@
 import functools
 
 import click
-import pytest
 
 from tests.helpers import clipboard, run
 
@@ -47,9 +46,6 @@ def test_show(db):
     result = run(['show', 'internet/github', '--clipboard'])
     assert result.output == ''
     assert clipboard() == 'gh'
-    # Should be gone after being pasted
-    with pytest.raises(SystemExit):
-        clipboard()
 
     # Try to put the whole database to clipboard
     result = run(['show', '--clipboard'])

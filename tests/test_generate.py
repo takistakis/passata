@@ -102,11 +102,8 @@ def test_generate(monkeypatch, db):
     # Generate and put to clipboard
     result = run(['generate', '--clipboard'])
     assert result.output == ("Put generated password to clipboard. "
-                             "Will clear after pasted twice.\n")
+                             "Will clear after 45 seconds.\n")
     assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
-    assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
-    with pytest.raises(SystemExit):
-        clipboard()
 
     # Generate, put in new entry and print
     result = run(['generate', 'asdf/test', '--length=5', '--force'])
@@ -118,14 +115,11 @@ def test_generate(monkeypatch, db):
     result = run(
         ['generate', 'asdf/test', '--length=7', '--force', '--clipboard'])
     assert result.output == (
-        "Put old password to clipboard. Will clear after pasted.\n"
+        "Put old password to clipboard.\n"
         "Press any key to continue ...\n"
-        "Put generated password to clipboard. Will clear after pasted twice.\n"
+        "Put generated password to clipboard. Will clear after 45 seconds.\n"
     )
     assert clipboard() == 'xxxxxxx'
-    assert clipboard() == 'xxxxxxx'
-    with pytest.raises(SystemExit):
-        clipboard()
 
     assert read(db) == (
         'internet:\n'
