@@ -33,6 +33,7 @@ setup(
     py_modules=['passata'],
     entry_points={'console_scripts': ['passata=passata:cli']},
     install_requires=['click', 'PyYAML'],
+    python_requires='>=3.5',
     classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',
