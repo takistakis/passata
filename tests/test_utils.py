@@ -28,7 +28,12 @@ import passata
 from tests.helpers import run
 
 
-def test_invalid_call():
+def test_non_zero_exit_status():
+    with pytest.raises(SystemExit):
+        passata.call(['false'])
+
+
+def test_command_not_found():
     with pytest.raises(SystemExit):
         passata.call(['there_is_no_such_executable.exe'])
 

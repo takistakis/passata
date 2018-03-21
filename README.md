@@ -16,12 +16,12 @@ Requirements:
 
 - Python 3.5 or newer
 - Python libraries: click, PyYAML
-- Software: gpg, xdotool, dmenu, libnotify, xclip
+- Software: gpg, xdotool, dmenu, libnotify, xsel
 
 For example for Arch Linux run:
 
 `# pacman -S python-click python-yaml gnupg xdotool dmenu libnotify
-xclip`
+xsel`
 
 Install passata itself using `setup.py`. Note that doing so might make
 startup too slow and cause a noticeable latency on autotyping. You may
