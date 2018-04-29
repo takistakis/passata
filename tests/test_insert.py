@@ -22,60 +22,88 @@ import click
 from tests.helpers import read, run
 
 
-def test_insert(monkeypatch, db):
-    monkeypatch.setattr(click, 'confirm', lambda m: confirm)
-
-    # Try to insert group
-    result = run(['insert', 'group', '--password=...'])
+def test_insert_to_group(db):
+    result = run(['insert', 'group', '--password=pass'])
     assert isinstance(result.exception, SystemExit)
     assert result.output == 'group is a group\n'
 
-    # Insert entry
-    run(['insert', 'group/test', '--password=one'])
-    assert (
+
+def test_insert_entry(db):
+    run(['insert', 'group/test', '--password=pass'])
+    assert read(db) == (
+        'internet:\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
         'group:\n'
         '  test:\n'
-        '    password: one\n'
-    ) in read(db)
+        '    password: pass\n')
 
-    # Force update
-    run(['insert', 'group/test', '--force', '--password=two'])
-    assert (
-        'group:\n'
-        '  test:\n'
-        '    password: two\n'
-        '    old_password: one\n'
-    ) in read(db)
 
-    # Confirm update
+def test_insert_force_update(db):
+    run(['insert', 'internet/reddit', '--force', '--password=newpass'])
+    assert read(db) == (
+        'internet:\n'
+        '  reddit:\n'
+        '    password: newpass\n'
+        '    username: sakis\n'
+        '    old_password: rdt\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
+
+
+def test_insert_confirm_update(monkeypatch, db):
+    monkeypatch.setattr(click, 'confirm', lambda m: confirm)
     confirm = True
-    run(['insert', 'group/test', '--password=three'])
-    assert (
-        'group:\n'
-        '  test:\n'
-        '    password: three\n'
-        '    old_password: two\n'
-    ) in read(db)
+    run(['insert', 'internet/reddit', '--password=newpass'])
+    assert read(db) == (
+        'internet:\n'
+        '  reddit:\n'
+        '    password: newpass\n'
+        '    username: sakis\n'
+        '    old_password: rdt\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
-    # Do not confirm update
+
+def test_insert_do_not_confirm_update(monkeypatch, db):
+    monkeypatch.setattr(click, 'confirm', lambda m: confirm)
     confirm = False
-    result = run(['insert', 'group/test', '--password=four'])
+    result = run(['insert', 'internet/reddit', '--password=newpass'])
     assert result.exception is None
-    assert (
-        'group:\n'
-        '  test:\n'
-        '    password: three\n'
-        '    old_password: two\n'
-    ) in read(db)
+    assert read(db) == (
+        'internet:\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+    )
 
-    # Add an entry with no password so there's no need for a backup
+
+def test_insert_no_password_no_backup(monkeypatch, db):
     monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
     updated = 'username: user\n'
     run(['edit', 'group/test'])
-    run(['insert', 'group/test', '--force', '--password=five'])
-    assert (
+    run(['insert', 'group/test', '--force', '--password=pass'])
+    assert read(db) == (
+        'internet:\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
         'group:\n'
         '  test:\n'
         '    username: user\n'
-        '    password: five\n'
-    ) in read(db)
+        '    password: pass\n'
+    )
