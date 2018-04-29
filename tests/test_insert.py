@@ -93,7 +93,7 @@ def test_insert_no_password_no_backup(monkeypatch, db):
     monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
     updated = 'username: user\n'
     run(['edit', 'group/test'])
-    run(['insert', 'group/test', '--force', '--password=pass'])
+    run(['insert', 'group/test', '--password=pass'])
     assert read(db) == (
         'internet:\n'
         '  reddit:\n'
