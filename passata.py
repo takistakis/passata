@@ -546,8 +546,8 @@ def do_insert(name, password, force):
     if entry is None:
         db.put(name, {'password': password})
     else:
-        confirm("Overwrite %s?" % name, force)
         if 'password' in entry:
+            confirm("Overwrite %s?" % name, force)
             old_password = entry['password']
             entry['old_password'] = old_password
         entry['password'] = password
