@@ -74,21 +74,20 @@ def test_show(db):
     assert result.output == expected
 
 
-def test_show_color(monkeypatch, db):
+def test_show_color(monkeypatch, db, editor):
     # Do not strip ANSI codes automatically
     color_echo = functools.partial(click.echo, color=True)
     monkeypatch.setattr(click, 'echo', color_echo)
 
     # Insert a new entry with a list
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
-    updated = (
+    editor(updated=(
         'username: user\n'
         'password: pass\n'
         'autotype: <username> Return !1.5 <password> Return\n'
         'keywords:\n'
         '- youtube\n'
         '- gmail\n'
-    )
+    ))
     run(['edit', 'group/google'])
 
     # Test show without color

@@ -19,16 +19,16 @@
 
 import click
 
+import passata
 from tests.helpers import read, run
 
 
-def test_edit_entry(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
+def test_edit_entry(monkeypatch, db, editor):
     monkeypatch.setattr(click, 'confirm', lambda m: confirm)
-    updated = (
+    editor(updated=(
         'username: sakis\n'
         'password: yolo\n'
-    )
+    ))
     confirm = True
     run(['edit', 'internet/reddit'])
     assert read(db) == (
@@ -42,13 +42,14 @@ def test_edit_entry(monkeypatch, db):
     )
 
 
-def test_edit_new_entry_in_existing_group(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
-    updated = (
+def test_edit_new_entry_in_existing_group(db, editor):
+    editor(updated=(
         'username: takis\n'
         'password: secret\n'
-    )
-    run(['edit', 'internet/stack overflow'])
+    ))
+    result = run(['edit', 'internet/stack overflow'])
+    assert result.exit_code == 0
+    assert result.exception is None
     assert read(db) == (
         'internet:\n'
         '  reddit:\n'
@@ -63,12 +64,11 @@ def test_edit_new_entry_in_existing_group(monkeypatch, db):
     )
 
 
-def test_edit_new_entry_in_new_group(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
-    updated = (
+def test_edit_new_entry_in_new_group(db, editor):
+    editor(updated=(
         'username: sakis\n'
         'password: yolo\n'
-    )
+    ))
     run(['edit', 'mail/gmail'])
     assert read(db) == (
         'internet:\n'
@@ -85,13 +85,14 @@ def test_edit_new_entry_in_new_group(monkeypatch, db):
     )
 
 
-def test_edit_delete_entry(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
+def test_edit_delete_entry(monkeypatch, db, editor):
     monkeypatch.setattr(click, 'confirm', lambda m: confirm)
-    updated = ''
+    editor(updated='')
     # Do not confirm
     confirm = False
-    run(['edit', 'internet/reddit'])
+    result = run(['edit', 'internet/reddit'])
+    assert result.exit_code == 0
+    assert result.exception is None
     assert read(db) == (
         'internet:\n'
         '  reddit:\n'
@@ -101,9 +102,12 @@ def test_edit_delete_entry(monkeypatch, db):
         '    password: gh\n'
         '    username: takis\n'
     )
+    passata.unlock_file(db)
     # Confirm
     confirm = True
-    run(['edit', 'internet/reddit'])
+    result = run(['edit', 'internet/reddit'])
+    assert result.exit_code == 0
+    assert result.exception is None
     assert read(db) == (
         'internet:\n'
         '  github:\n'
@@ -112,9 +116,8 @@ def test_edit_delete_entry(monkeypatch, db):
     )
 
 
-def test_edit_delete_nonexistent_entry(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
-    updated = ''
+def test_edit_delete_nonexistent_entry(db, editor):
+    editor(updated='')
     run(['edit', 'asdf/asdf'])
     assert read(db) == (
         'internet:\n'
@@ -127,14 +130,13 @@ def test_edit_delete_nonexistent_entry(monkeypatch, db):
     )
 
 
-def test_edit_group(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
+def test_edit_group(monkeypatch, db, editor):
     monkeypatch.setattr(click, 'confirm', lambda m: confirm)
-    updated = (
+    editor(updated=(
         'reddit:\n'
         '  username: takis\n'
         '  password: secret\n'
-    )
+    ))
     confirm = True
     run(['edit', 'internet'])
     assert read(db) == (
@@ -145,11 +147,10 @@ def test_edit_group(monkeypatch, db):
     )
 
 
-def test_edit_delete_group(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
+def test_edit_delete_group(monkeypatch, db, editor):
     monkeypatch.setattr(click, 'confirm', lambda m: confirm)
     # Do not confirm
-    updated = ''
+    editor(updated='')
     confirm = False
     run(['edit', 'internet'])
     assert read(db) == (
@@ -167,9 +168,8 @@ def test_edit_delete_group(monkeypatch, db):
     assert read(db) == ''
 
 
-def test_edit_delete_nonexistent_group(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
-    updated = ''
+def test_edit_delete_nonexistent_group(db, editor):
+    editor(updated='')
     run(['edit', 'asdf'])
     assert read(db) == (
         'internet:\n'
@@ -182,8 +182,7 @@ def test_edit_delete_nonexistent_group(monkeypatch, db):
     )
 
 
-def test_edit_database(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
+def test_edit_database(monkeypatch, db, editor):
     monkeypatch.setattr(click, 'confirm', lambda m: confirm)
     updated = (
         'internet:\n'
@@ -191,21 +190,39 @@ def test_edit_database(monkeypatch, db):
         '    password: rdt\n'
         '    username: sakis\n'
     )
+    editor(updated=updated)
     confirm = True
     run(['edit'])
     assert read(db) == updated
 
 
-def test_edit_delete_database(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
+def test_edit_delete_database(monkeypatch, db, editor):
     monkeypatch.setattr(click, 'confirm', lambda m: confirm)
     original = read(db)
-    updated = ''
+    editor(updated='')
     # Do not confirm
     confirm = False
-    run(['edit'])
+    result = run(['edit'])
+    assert result.exit_code == 0
+    assert result.exception is None
     assert read(db) == original
+    passata.unlock_file(db)
     # Confirm
     confirm = True
-    run(['edit'])
+    result = run(['edit'])
+    assert result.exit_code == 0
+    assert result.exception is None
     assert read(db) == ''
+
+
+def test_edit_invalid_yaml(monkeypatch, db, editor):
+    monkeypatch.setattr(click, 'confirm', lambda m: confirm)
+    editor(updated=(
+        'username: sakis\n'
+        'password\n'
+    ))
+    confirm = True
+    result = run(['edit', 'internet/reddit'])
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == 'Invalid yaml\n'
