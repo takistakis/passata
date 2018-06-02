@@ -17,8 +17,6 @@
 
 """Tests for passata find."""
 
-import click
-
 from tests.helpers import run
 
 
@@ -54,16 +52,15 @@ def test_find_no_results(db):
     assert result.output == ''
 
 
-def test_find_in_keyword(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
-    updated = (
+def test_find_in_keyword(db, editor):
+    editor(updated=(
         'username: user\n'
         'password: pass\n'
         'autotype: <username> Return !1.5 <password> Return\n'
         'keywords:\n'
         '- youtube\n'
         '- gmail\n'
-    )
+    ))
     run(['edit', 'group/google'])
 
     result = run(['find', 'mail'])
@@ -73,16 +70,15 @@ def test_find_in_keyword(monkeypatch, db):
     )
 
 
-def test_find_show_in_keyword(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
-    updated = (
+def test_find_show_in_keyword(db, editor):
+    editor(updated=(
         'username: user\n'
         'password: pass\n'
         'autotype: <username> Return !1.5 <password> Return\n'
         'keywords:\n'
         '- youtube\n'
         '- gmail\n'
-    )
+    ))
     run(['edit', 'group/google'])
 
     result = run(['find', 'mail', '--show'])

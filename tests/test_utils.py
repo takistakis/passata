@@ -68,6 +68,17 @@ def test_lock(monkeypatch, db):
     assert result.output == ''
     assert result.exception is None
 
+    try:
+        # The file is normally unlocked and deleted when the
+        # program exits (see: atexit), which hasn't happened yet.
+        # The first time we call unlock_file, we explicitly unlock it.
+        passata.unlock_file(str(db))
+        # The second, we do nothing but no error is raised
+        # either, because we ignore any FileNotFoundError.
+        passata.unlock_file(str(db))
+    except Exception as e:
+        pytest.fail('unlock_file: %s' % e)
+
 
 def test_default_gpg_id(monkeypatch):
     monkeypatch.setattr(passata, 'out', lambda cmd: output)
@@ -90,8 +101,8 @@ def test_default_gpg_id(monkeypatch):
         passata.default_gpg_id()
 
 
-def test_keywords():
-    db = passata.DB()
+def test_keywords(db):
+    db = passata.DB(str(db))
 
     # The `keywords` field is empty
     db.put('internet/reddit', {

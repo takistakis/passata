@@ -19,6 +19,7 @@
 
 """A simple password manager, inspired by pass."""
 
+import atexit
 import collections
 import fcntl
 import math
@@ -32,6 +33,7 @@ import tempfile
 import time
 
 import click
+import pyinotify
 import yaml
 
 __version__ = '0.1.0'
@@ -97,21 +99,38 @@ def die(message):
 
 
 def lock_file(path):
-    """Open a file and lock it.
+    """Open and lock a temporary file associated with `path`.
+
+    The file will be deleted when the program exits.
 
     By locking the database, we can assure that only one passata
     process that is executing a database modifying command, can be
     running at a time. Read-only commands should not acquire the lock.
     """
+    # Don't lock the file itself because the lock would get lost on
+    # write, and if we're editing, it could be written multiple times.
+    lockpath = '%s.lock' % path
+
     # Open with 'a' (i.e. append) to prevent truncation
-    lock = open(path, 'a')
+    lock = open(lockpath, 'a')
     try:
         fcntl.lockf(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except IOError:
         sys.exit("Another passata process is editing the database")
 
+    atexit.register(unlock_file, path)
+
     # Register the lock file's file descriptor to prevent it from closing
     click.get_current_context().obj['_lock'] = lock
+
+
+def unlock_file(path):
+    """Remove the lock file, which also releases the lock."""
+    lockpath = '%s.lock' % path
+    try:
+        os.unlink(lockpath)
+    except FileNotFoundError:
+        pass
 
 
 def to_clipboard(data, timeout):
@@ -258,8 +277,9 @@ def default_gpg_id():
 class DB:
     """A passata database."""
 
-    def __init__(self):
+    def __init__(self, path=None):
         self.db = collections.OrderedDict()
+        self.path = os.path.expanduser(path or option('database'))
 
     def __iter__(self):
         for groupname in self.db:
@@ -277,37 +297,34 @@ class DB:
 
     def read(self, lock=False):
         """Return the database as a plaintext string."""
-        dbpath = os.path.expanduser(option('database'))
-        if not os.path.isfile(dbpath):
-            sys.exit("Database file (%s) does not exist" % dbpath)
+        if not os.path.isfile(self.path):
+            sys.exit("Database file (%s) does not exist" % self.path)
         if lock:
-            lock_file(dbpath)
-        data = self.decrypt(dbpath)
+            lock_file(self.path)
+        data = self.decrypt(self.path)
         self.db = to_dict(data)
 
     @staticmethod
-    def encrypt(data):  # pragma: no cover
+    def encrypt(data, gpg_id=None):  # pragma: no cover
         """Encrypt given text using gpg."""
-        gpg_id = option('gpg_id')
+        gpg_id = gpg_id or option('gpg_id')
         return out(['gpg', '-ear', gpg_id], input=data)
 
-    def write(self, force=True):
+    def write(self, gpg_id=None, force=True):
         """Write the database as an encrypted string."""
-        dbpath = os.path.expanduser(option('database'))
-        confirm_overwrite(dbpath, force)
+        confirm_overwrite(self.path, force)
         data = to_string(self.db)
-        encrypted = self.encrypt(data)
+        encrypted = self.encrypt(data, gpg_id)
         # Write to a temporary file, make sure the data has reached the
         # disk and replace the database with the temporary file using
         # os.replace() which is guaranteed to be an atomic operation.
         fd = tempfile.NamedTemporaryFile(
-            mode='w', dir=os.path.dirname(dbpath), delete=False)
+            mode='w', dir=os.path.dirname(self.path), delete=False)
         fd.write(encrypted)
         fd.flush()
         os.fsync(fd.fileno())
         fd.close()
-        os.replace(fd.name, dbpath)
-        # Here the lock on the database is released
+        os.replace(fd.name, self.path)
 
     def get(self, name):
         """Return database, group or entry."""
@@ -445,16 +462,13 @@ def cli(ctx, config):  # noqa: D401
 def init(obj, force, gpg_id, path):
     """Initialize password database."""
     dbpath = os.path.abspath(os.path.expanduser(path))
-    # lock_file() creates the file if it does not
-    # exist, so we need to ask for confirmation here.
-    confirm_overwrite(dbpath, force)
     lock_file(dbpath)
     confpath = obj['_confpath']
     config = {'database': dbpath, 'gpg_id': gpg_id}
     write_config(confpath, config, force)
     obj.update(config)
     db = DB()
-    db.write()
+    db.write(force)
 
 
 @cli.command()
@@ -639,19 +653,69 @@ def generate(name, force, clipboard, length, entropy, symbols, wordlist):
 @click.argument('name', required=False)
 def edit(name):
     """Edit entry, group or the whole database."""
-    db = DB()
+    db = DB(option('database'))
     db.read(lock=True)
     subdict = db.get(name) or collections.OrderedDict()
     original = to_string(subdict)
     # Describe what is being edited in a comment at the top
     comment = name or "passata database"
     text = "# %s\n%s" % (comment, original)
-    updated = click.edit(text, editor=option('editor'), extension='.yml')
-    # If not saved or saved but unchanged do nothing
-    if updated is None or original == updated.strip():
-        return
-    db.put(name, to_dict(updated))
-    db.write()
+
+    fp = tempfile.NamedTemporaryFile(
+        mode='w+', prefix='passata-', suffix='.yml'
+    )
+    fp.write(text)
+    fp.flush()
+
+    class EventHandler(pyinotify.ProcessEvent):
+        """Custom pyinotify event handler."""
+
+        @staticmethod
+        def process_IN_MODIFY(event):  # pylint: disable=invalid-name
+            """Update the database each time the temporary file is saved."""
+            if event.pathname != fp.name:
+                return
+            with open(fp.name) as f:
+                updated = f.read()
+            # If the file is empty or contains invalid yaml,
+            # ignore it. Once the editor exits, we will
+            # read it one last time and handle it properly.
+            try:
+                data = to_dict(updated)
+            except yaml.scanner.ScannerError:
+                return
+            if not data:
+                return
+            db.put(name, data)
+            db.write(gpg_id)
+
+    # click does not preserve the context in-between threads, so
+    # we pass gpg_id into the closure as a nonlocal variable.
+    gpg_id = option('gpg_id')
+
+    manager = pyinotify.WatchManager()
+    notifier = pyinotify.ThreadedNotifier(manager, EventHandler())
+    notifier.start()
+    tmpdir = os.path.dirname(fp.name)
+    mask = pyinotify.IN_MODIFY  # pylint: disable=no-member
+    watch = manager.add_watch(tmpdir, mask)
+    click.edit(filename=fp.name, editor=option('editor'))
+    manager.rm_watch(watch[tmpdir])
+    notifier.stop()
+
+    # Read the file one last time. It may have already been read
+    # in the handler, but it's not guaranteed. If for example the
+    # user saved and exited the editor, there is a race condition.
+    fp.seek(0)
+    updated = fp.read()
+    try:
+        data = to_dict(updated)
+    except yaml.scanner.ScannerError:
+        sys.exit("Invalid yaml")
+    else:
+        db.put(name, data)
+        db.write(gpg_id)
+    fp.close()
 
 
 @cli.command()

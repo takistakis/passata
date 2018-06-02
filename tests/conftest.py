@@ -19,6 +19,7 @@
 
 import os
 
+import click
 import pytest
 
 import passata
@@ -26,7 +27,7 @@ import passata
 
 @pytest.fixture
 def db(tmpdir, monkeypatch):
-    monkeypatch.setattr(passata.DB, 'encrypt', lambda s, x: x)
+    monkeypatch.setattr(passata.DB, 'encrypt', lambda s, x, g: x)
     monkeypatch.setattr(passata.DB, 'decrypt', lambda s, x: open(x).read())
 
     confpath = tmpdir.join('config.yml')
@@ -46,3 +47,15 @@ def db(tmpdir, monkeypatch):
     os.environ['PASSATA_CONFIG_PATH'] = str(confpath)
 
     yield dbpath
+
+
+@pytest.fixture
+def editor(monkeypatch):
+    def make_editor(updated):
+        def mock_editor(filename, editor):
+            with open(filename, 'w') as f:
+                f.write(updated)
+
+        monkeypatch.setattr(click, 'edit', mock_editor)
+
+    return make_editor

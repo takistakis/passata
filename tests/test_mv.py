@@ -23,7 +23,9 @@ from tests.helpers import read, run
 
 
 def test_mv_entry_to_entry(db):
-    run(['mv', 'internet/reddit', 'internet/rdt'])
+    result = run(['mv', 'internet/reddit', 'internet/rdt'])
+    assert result.exit_code == 0
+    assert result.exception is None
     assert read(db) == (
         'internet:\n'
         '  github:\n'

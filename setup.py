@@ -32,7 +32,7 @@ setup(
     license='GPLv3+',
     py_modules=['passata'],
     entry_points={'console_scripts': ['passata=passata:cli']},
-    install_requires=['click', 'PyYAML'],
+    install_requires=['click', 'PyYAML', 'pyinotify'],
     python_requires='>=3.5',
     classifiers=[
         'Development Status :: 4 - Beta',

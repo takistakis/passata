@@ -89,9 +89,8 @@ def test_insert_do_not_confirm_update(monkeypatch, db):
     )
 
 
-def test_insert_no_password_no_backup(monkeypatch, db):
-    monkeypatch.setattr(click, 'edit', lambda x, editor, extension: updated)
-    updated = 'username: user\n'
+def test_insert_no_password_no_backup(db, editor):
+    editor(updated='username: user\n')
     run(['edit', 'group/test'])
     run(['insert', 'group/test', '--password=pass'])
     assert read(db) == (

@@ -26,7 +26,7 @@ from tests.helpers import run
 
 
 def test_init(tmpdir, monkeypatch):
-    monkeypatch.setattr(passata.DB, 'encrypt', lambda s, x: x)
+    monkeypatch.setattr(passata.DB, 'encrypt', lambda s, x, g: x)
     monkeypatch.setattr(passata.DB, 'decrypt', lambda s, x: open(x).read())
 
     confpath = tmpdir.join('config.yml')
