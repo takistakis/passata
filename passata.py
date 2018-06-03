@@ -637,7 +637,8 @@ def generate_password(length, entropy, symbols, wordlist, force):
 @click.option('-l', '--length', type=click.IntRange(1),
               default=lambda: option('length'),
               help="Length of the generated password.")
-@click.option('-e', '--entropy', type=int, default=lambda: option('entropy'),
+@click.option('-e', '--entropy', type=click.IntRange(1),
+              default=lambda: option('entropy'),
               help="Calculate length for given bits of entropy.")
 @click.option('--symbols/--no-symbols', is_flag=True,
               default=lambda: option('symbols'),
