@@ -45,19 +45,19 @@ def test_show_entry_three_levels_deep(db):
 
 
 def test_show_clipboard(db):
-    result = run(['show', 'internet/github', '--clipboard'])
+    result = run(['show', 'internet/github', '--clip'])
     assert result.output == ''
     assert clipboard() == 'gh'
 
 
 def test_show_clipboard_whole_database(db):
-    result = run(['show', '--clipboard'])
+    result = run(['show', '--clip'])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Can't put the entire database to clipboard\n"
 
 
 def test_show_clipboard_whole_group(db):
-    result = run(['show', 'internet', '--clipboard'])
+    result = run(['show', 'internet', '--clip'])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Can't put the entire group to clipboard\n"
 
