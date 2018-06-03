@@ -123,12 +123,12 @@ def test_generate(monkeypatch, db):
 
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
         'asdf:\n'
         '  test:\n'
         '    password: xxxxxxx\n'

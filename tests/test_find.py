@@ -32,8 +32,8 @@ def test_find_multiple(db):
     result = run(['find', 'red', 'git'])
     assert result.output == (
         'internet\n'
-        '├── reddit\n'
-        '└── github\n'
+        '├── github\n'
+        '└── reddit\n'
     )
 
 

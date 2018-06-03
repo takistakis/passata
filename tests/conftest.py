@@ -33,16 +33,20 @@ def db(tmpdir, monkeypatch):
     confpath = tmpdir.join('config.yml')
     dbpath = tmpdir.join('passata.db')
 
-    confpath.write('database: %s\n'
-                   'gpg_id: id\n' % dbpath)
+    confpath.write(
+        'database: %s\n'
+        'gpg_id: id\n' % dbpath
+    )
 
-    dbpath.write('internet:\n'
-                 '  reddit:\n'
-                 '    password: rdt\n'
-                 '    username: sakis\n'
-                 '  github:\n'
-                 '    password: gh\n'
-                 '    username: takis\n')
+    dbpath.write(
+        'internet:\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
+    )
 
     os.environ['PASSATA_CONFIG_PATH'] = str(confpath)
 

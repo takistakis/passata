@@ -61,12 +61,12 @@ def test_mv_entries_to_group(db):
     run(['mv', 'internet/reddit', 'internet/github', 'new'])
     assert read(db) == (
         'new:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
     )
 
 
@@ -74,12 +74,12 @@ def test_mv_group_to_group(db):
     run(['mv', 'internet', 'test'])
     assert read(db) == (
         'test:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
     )
 
 
@@ -115,12 +115,12 @@ def test_mv_overwrite(monkeypatch, db):
     run(['mv', 'internet/reddit', 'internet/github'])
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
     )
 
     confirm = True
