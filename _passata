@@ -60,7 +60,7 @@ _passata() {
 
         show)
           _arguments -s : \
-            '(-c --clipboard)'{-c,--clipboard}'[Copy password to clipboard instead of printing]' \
+            '(-c --clip)'{-c,--clip}'[Copy password to clipboard instead of printing]' \
             '(--color --no-color)--color[Colorize the output]' \
             '(--color --no-color)--no-color[Do not colorize the output]' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
@@ -78,7 +78,7 @@ _passata() {
         generate)
           _arguments -s : \
             '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
-            '(-c --clipboard)'{-c,--clipboard}'[Copy password to clipboard instead of printing]' \
+            '(-c --clip)'{-c,--clip}'[Copy password to clipboard instead of printing]' \
             '(-l --length -e --entropy)'{-l,--length}'[Length of the generated password]:int:' \
             '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given bits of entropy]:int:' \
             '(--symbols --no-symbols -w --wordlist)--symbols[Use symbols in the generated password]' \

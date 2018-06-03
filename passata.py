@@ -531,18 +531,18 @@ def find(names, no_tree, color, show_):
 
 
 @cli.command(short_help="Show entry, group or the whole database.")
-@click.option('-c', '--clipboard', is_flag=True,
+@click.option('-c', '--clip', is_flag=True,
               help="Copy password to clipboard instead of printing.")
 @click.option('--color/--no-color', is_flag=True,
               default=lambda: option('color'),
               help="Whether to colorize the output.")
 @click.argument('name', required=False)
-def show(name, clipboard, color):
+def show(name, clip, color):
     """Decrypt and print the contents of NAME.
 
     NAME can be an entry, a group, or omitted to print the whole database. If
-    NAME is an entry and --clipboard is specified, the password will stay in
-    the clipboard until it is pasted.
+    NAME is an entry and --clip is specified, the password will stay in the
+    clipboard until it is pasted.
     """
     db = DB()
     db.read()
@@ -550,7 +550,7 @@ def show(name, clipboard, color):
     if entry is None:
         sys.exit("%s not found" % name)
 
-    if clipboard:
+    if clip:
         if name is None:
             sys.exit("Can't put the entire database to clipboard")
         if isgroup(name):
@@ -631,7 +631,7 @@ def generate_password(length, entropy, symbols, wordlist, force):
 @click.argument('name', required=False)
 @click.option('-f', '--force', is_flag=True,
               help="Do not prompt for confirmation.")
-@click.option('-c', '--clipboard', is_flag=True,
+@click.option('-c', '--clip', is_flag=True,
               help="Copy password to clipboard instead of printing.")
 @click.option('-l', '--length', type=click.IntRange(1), metavar='INTEGER',
               default=lambda: option('length'),
@@ -644,7 +644,7 @@ def generate_password(length, entropy, symbols, wordlist, force):
               help="Whether to use symbols in the generated password.")
 @click.option('-w', '--wordlist', type=click.Path(dir_okay=False),
               help=("List of words for passphrase generation."))
-def generate(name, force, clipboard, length, entropy, symbols, wordlist):
+def generate(name, force, clip, length, entropy, symbols, wordlist):
     """Generate a random password.
 
     When overwriting an existing entry, the old password is kept in
@@ -652,7 +652,7 @@ def generate(name, force, clipboard, length, entropy, symbols, wordlist):
     """
     password = generate_password(length, entropy, symbols, wordlist, force)
     old_password = do_insert(name, password, force) if name else None
-    if clipboard:
+    if clip:
         if old_password is not None:
             to_clipboard(old_password, timeout=0)
             click.echo("Put old password to clipboard.")

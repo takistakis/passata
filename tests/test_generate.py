@@ -100,7 +100,7 @@ def test_generate(monkeypatch, db):
     assert result.output == 'xxxxxxxxxxxxxxxxxxxx\n'
 
     # Generate and put to clipboard
-    result = run(['generate', '--clipboard'])
+    result = run(['generate', '--clip'])
     assert result.output == ("Put generated password to clipboard. "
                              "Will clear after 45 seconds.\n")
     assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
@@ -113,7 +113,7 @@ def test_generate(monkeypatch, db):
     monkeypatch.setattr(click, 'pause',
                         lambda: print("Press any key to continue ..."))
     result = run(
-        ['generate', 'asdf/test', '--length=7', '--force', '--clipboard'])
+        ['generate', 'asdf/test', '--length=7', '--force', '--clip'])
     assert result.output == (
         "Put old password to clipboard.\n"
         "Press any key to continue ...\n"
