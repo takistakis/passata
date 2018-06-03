@@ -20,30 +20,32 @@
 from tests.helpers import run
 
 
-def test_ls(db):
-    # List all
+def test_ls_db(db):
     result = run(['ls'])
     assert result.output == (
         'internet\n'
-        '├── reddit\n'
-        '└── github\n'
+        '├── github\n'
+        '└── reddit\n'
     )
 
-    # List group
+
+def test_ls_group(db):
     result = run(['ls', 'internet'])
     assert result.output == (
-        'reddit\n'
         'github\n'
+        'reddit\n'
     )
 
-    # --no-tree
+
+def test_ls_no_tree(db):
     result = run(['ls', '--no-tree'])
     assert result.output == (
-        'internet/reddit\n'
         'internet/github\n'
+        'internet/reddit\n'
     )
 
-    # Nonexistent group
+
+def test_ls_nonexistent_group(db):
     result = run(['ls', 'nonexistent'])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "nonexistent not found\n"

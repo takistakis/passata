@@ -32,12 +32,12 @@ def test_insert_entry(db):
     run(['insert', 'group/test', '--password=pass'])
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
         'group:\n'
         '  test:\n'
         '    password: pass\n')
@@ -47,13 +47,13 @@ def test_insert_force_update(db):
     run(['insert', 'internet/reddit', '--force', '--password=newpass'])
     assert read(db) == (
         'internet:\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
         '  reddit:\n'
         '    password: newpass\n'
         '    username: sakis\n'
         '    old_password: rdt\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
     )
 
 
@@ -63,13 +63,13 @@ def test_insert_confirm_update(monkeypatch, db):
     run(['insert', 'internet/reddit', '--password=newpass'])
     assert read(db) == (
         'internet:\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
         '  reddit:\n'
         '    password: newpass\n'
         '    username: sakis\n'
         '    old_password: rdt\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
     )
 
 
@@ -80,12 +80,12 @@ def test_insert_do_not_confirm_update(monkeypatch, db):
     assert result.exception is None
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
     )
 
 
@@ -95,14 +95,29 @@ def test_insert_no_password_no_backup(db, editor):
     run(['insert', 'group/test', '--password=pass'])
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
         'group:\n'
         '  test:\n'
         '    username: user\n'
         '    password: pass\n'
+    )
+
+
+def test_insert_sort(db):
+    run(['insert', 'internet/asdf', '--password=pass'])
+    assert read(db) == (
+        'internet:\n'
+        '  asdf:\n'
+        '    password: pass\n'
+        '  github:\n'
+        '    password: gh\n'
+        '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
     )

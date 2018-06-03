@@ -25,53 +25,65 @@ from tests.helpers import clipboard, run
 
 
 def test_show(db):
-    # Normal show
     result = run(['show', 'internet/github'])
     assert result.output == (
         'password: gh\n'
         'username: takis\n'
     )
 
-    # Try to show a nonexistent entry
+
+def test_show_nonexistent_entry(db):
     result = run(['show', 'internet/nonexistent'])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/nonexistent not found\n"
 
-    # Try to show an entry three levels deep
+
+def test_show_entry_three_levels_deep(db):
     result = run(['show', 'one/two/three'])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "one/two/three is nested too deeply\n"
 
-    # Clipboard
+
+def test_show_clipboard(db):
     result = run(['show', 'internet/github', '--clipboard'])
     assert result.output == ''
     assert clipboard() == 'gh'
 
-    # Try to put the whole database to clipboard
+
+def test_show_clipboard_whole_database(db):
     result = run(['show', '--clipboard'])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Can't put the entire database to clipboard\n"
 
-    # Try to put a whole group to clipboard
+
+def test_show_clipboard_whole_group(db):
     result = run(['show', 'internet', '--clipboard'])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Can't put the entire group to clipboard\n"
 
-    # Show group
-    expected = (
-        'reddit:\n'
-        '  password: rdt\n'
-        '  username: sakis\n'
+
+def test_show_group(db):
+    result = run(['show', 'internet'])
+    assert result.output == (
         'github:\n'
         '  password: gh\n'
         '  username: takis\n'
+        'reddit:\n'
+        '  password: rdt\n'
+        '  username: sakis\n'
     )
-    result = run(['show', 'internet'])
-    assert result.output == expected
 
-    # Show group with trailing slash
+
+def test_show_group_with_trailing_slash(db):
     result = run(['show', 'internet/'])
-    assert result.output == expected
+    assert result.output == (
+        'github:\n'
+        '  password: gh\n'
+        '  username: takis\n'
+        'reddit:\n'
+        '  password: rdt\n'
+        '  username: sakis\n'
+    )
 
 
 def test_show_color(monkeypatch, db, editor):

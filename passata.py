@@ -357,16 +357,19 @@ class DB:
         # Put the whole database
         if not groupname:
             self.db = subdict
+            self.sort()
 
         # Put a whole group
         elif not entryname:
             self.db[groupname] = subdict
+            self.sort_group(groupname)
 
         # Put a single entry
         else:
             if groupname not in self.db:
                 self.db[groupname] = collections.OrderedDict()
             self.db[groupname][entryname] = subdict
+            self.sort_group(groupname)
 
     def pop(self, name, force=False):
         """Remove subdict and every empty parent and return it."""
@@ -433,6 +436,18 @@ class DB:
         elif keywords is not None:
             return [str(keywords).lower()]
         return []
+
+    def sort_group(self, groupname):
+        """Sort entries in the given group."""
+        group = self.db[groupname]
+        self.db[groupname] = collections.OrderedDict(
+            sorted(group.items(), key=lambda t: t[0])
+        )
+
+    def sort(self):
+        """Sort entries in each group of the database."""
+        for groupname in self.db:
+            self.sort_group(groupname)
 
 
 # Commands

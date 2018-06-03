@@ -33,12 +33,12 @@ def test_edit_entry(monkeypatch, db, editor):
     run(['edit', 'internet/reddit'])
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    username: sakis\n'
-        '    password: yolo\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    username: sakis\n'
+        '    password: yolo\n'
     )
 
 
@@ -52,12 +52,12 @@ def test_edit_new_entry_in_existing_group(db, editor):
     assert result.exception is None
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
         '  stack overflow:\n'
         '    username: takis\n'
         '    password: secret\n'
@@ -72,12 +72,12 @@ def test_edit_new_entry_in_new_group(db, editor):
     run(['edit', 'mail/gmail'])
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
         'mail:\n'
         '  gmail:\n'
         '    username: sakis\n'
@@ -95,12 +95,12 @@ def test_edit_delete_entry(monkeypatch, db, editor):
     assert result.exception is None
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
     )
     passata.unlock_file(db)
     # Confirm
@@ -121,12 +121,12 @@ def test_edit_delete_nonexistent_entry(db, editor):
     run(['edit', 'asdf/asdf'])
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
     )
 
 
@@ -155,12 +155,12 @@ def test_edit_delete_group(monkeypatch, db, editor):
     run(['edit', 'internet'])
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
     )
     # Confirm
     confirm = True
@@ -173,12 +173,12 @@ def test_edit_delete_nonexistent_group(db, editor):
     run(['edit', 'asdf'])
     assert read(db) == (
         'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
         '  github:\n'
         '    password: gh\n'
         '    username: takis\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
     )
 
 
