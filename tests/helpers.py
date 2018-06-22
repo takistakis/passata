@@ -26,9 +26,9 @@ def read(dbpath):
     return dbpath.open().read()
 
 
-def run(args):
+def run(args, input=None):
     runner = click.testing.CliRunner()
-    return runner.invoke(passata.cli, args)
+    return runner.invoke(passata.cli, args, input)
 
 
 def clipboard():
