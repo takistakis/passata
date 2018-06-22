@@ -23,9 +23,11 @@ import pytest
 import passata
 from tests.helpers import clipboard, read, run
 
-ALPHANUMERIC = ('abcdefghijklmnopqrstuvwxyz'
-                'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-                '0123456789')
+ALPHANUMERIC = (
+    'abcdefghijklmnopqrstuvwxyz'
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    '0123456789'
+)
 
 SYMBOLS = '!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
 
@@ -91,36 +93,94 @@ def test_generate_passphrase_file_not_found(tmpdir):
             length=5, entropy=None, symbols=True, wordlist=path, force=True)
 
 
-def test_generate(monkeypatch, db):
-    monkeypatch.setattr(passata, 'generate_password',
-                        lambda l, e, s, w, f: l * 'x')
+@pytest.fixture
+def patch(monkeypatch):
+    # NOTE: The following monkeypatch eats the "Generated
+    # password with x bits of entropy" message.
+    monkeypatch.setattr(
+        passata, 'generate_password', lambda l, e, s, w, f: l * 'x'
+    )
+    monkeypatch.setattr(
+        click, 'pause', lambda: print("Press any key to continue ...")
+    )
+    # Clear the clipboard before and after the test
+    command = ['xsel', '-c', '-b']
+    passata.out(command)
+    yield
+    passata.out(command)
 
-    # Generate and print
-    result = run(['generate'])
-    assert result.output == 'xxxxxxxxxxxxxxxxxxxx\n'
 
-    # Generate and put to clipboard
-    result = run(['generate', '--clip'])
-    assert result.output == ("Put generated password to clipboard. "
-                             "Will clear after 45 seconds.\n")
+def assert_password_in_output(result):
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert result.output == "xxxxxxxxxxxxxxxxxxxx\n"
+    assert clipboard() == ''
+
+
+def assert_password_in_clipboard(result):
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert result.output == (
+        "Copied generated password to clipboard. "
+        "Will clear after 45 seconds.\n"
+    )
     assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
 
-    # Generate, put in new entry and print
-    result = run(['generate', 'asdf/test', '--length=5', '--force'])
-    assert result.output == 'xxxxx\n'
 
-    # Generate, put in existing entry and put to clipboard
-    monkeypatch.setattr(click, 'pause',
-                        lambda: print("Press any key to continue ..."))
-    result = run(
-        ['generate', 'asdf/test', '--length=7', '--force', '--clip'])
+def assert_password_in_output_and_clipboard(result):
+    assert result.exit_code == 0
+    assert result.exception is None
     assert result.output == (
-        "Put old password to clipboard.\n"
-        "Press any key to continue ...\n"
-        "Put generated password to clipboard. Will clear after 45 seconds.\n"
+        "xxxxxxxxxxxxxxxxxxxx\n"
+        "Copied generated password to clipboard. "
+        "Will clear after 45 seconds.\n"
     )
-    assert clipboard() == 'xxxxxxx'
+    assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
 
+
+class TestGenerateNoName:
+    """Test generate without argument and different print/clip combinations."""
+
+    def test_generate(self, patch):
+        result = run(['generate'])
+        assert_password_in_clipboard(result)
+
+    def test_generate_clip(self, patch):
+        result = run(['generate', '--clip'])
+        assert_password_in_clipboard(result)
+
+    def test_generate_no_clip(self, patch):
+        result = run(['generate', '--no-clip'])
+        assert_password_in_output(result)
+
+    def test_generate_print(self, patch):
+        result = run(['generate', '--print'])
+        assert_password_in_output_and_clipboard(result)
+
+    def test_generate_no_print(self, patch):
+        result = run(['generate', '--no-print'])
+        assert_password_in_clipboard(result)
+
+    def test_generate_print_clip(self, patch):
+        result = run(['generate', '--print', '--clip'])
+        assert_password_in_output_and_clipboard(result)
+
+    def test_generate_print_no_clip(self, patch):
+        result = run(['generate', '--print', '--no-clip'])
+        assert_password_in_output(result)
+
+    def test_generate_no_print_clip(self, patch):
+        result = run(['generate', '--no-print', '--clip'])
+        assert_password_in_clipboard(result)
+
+    def test_generate_no_print_no_clip(self, patch):
+        result = run(['generate', '--no-print', '--no-clip'])
+        assert_password_in_output(result)
+
+
+def test_generate_put_in_new_entry_print(patch, db):
+    result = run(['generate', 'asdf/test', '--print', '--no-clip'])
+    assert_password_in_output(result)
     assert read(db) == (
         'internet:\n'
         '  github:\n'
@@ -131,6 +191,28 @@ def test_generate(monkeypatch, db):
         '    username: sakis\n'
         'asdf:\n'
         '  test:\n'
-        '    password: xxxxxxx\n'
-        '    old_password: xxxxx\n'
+        '    password: xxxxxxxxxxxxxxxxxxxx\n'
+    )
+
+
+def test_generate_put_in_existing_entry_clip(patch, db):
+    result = run(['generate', 'internet/github', '--force'])
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert result.output == (
+        "Copied old password to clipboard.\n"
+        "Press any key to continue ...\n"
+        "Copied generated password to clipboard. "
+        "Will clear after 45 seconds.\n"
+    )
+    assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
+    assert read(db) == (
+        'internet:\n'
+        '  github:\n'
+        '    password: xxxxxxxxxxxxxxxxxxxx\n'
+        '    username: takis\n'
+        '    old_password: gh\n'
+        '  reddit:\n'
+        '    password: rdt\n'
+        '    username: sakis\n'
     )
