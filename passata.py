@@ -630,8 +630,10 @@ def generate_password(length, entropy, symbols, wordlist, force):
 @click.argument('name', required=False)
 @click.option('-f', '--force', is_flag=True,
               help="Do not prompt for confirmation.")
-@click.option('-c', '--clip', is_flag=True,
-              help="Copy password to clipboard instead of printing.")
+@click.option('-p/-P', '--print/--no-print',
+              help="Whether to print the password.")
+@click.option('-c/-C', '--clip/--no-clip', default=True,
+              help="Whether to copy password to clipboard.")
 @click.option('-l', '--length', type=click.IntRange(1), metavar='INTEGER',
               default=lambda: option('length'),
               help="Length of the generated password.")
@@ -643,25 +645,25 @@ def generate_password(length, entropy, symbols, wordlist, force):
               help="Whether to use symbols in the generated password.")
 @click.option('-w', '--wordlist', type=click.Path(dir_okay=False),
               help=("List of words for passphrase generation."))
-def generate(name, force, clip, length, entropy, symbols, wordlist):
+def generate(name, force, print, clip, length, entropy, symbols, wordlist):
     """Generate a random password.
 
     When overwriting an existing entry, the old password is kept in
     <old_password>.
     """
     password = generate_password(length, entropy, symbols, wordlist, force)
+    if print or (not name and not clip):
+        click.echo(password)
     old_password = do_insert(name, password, force) if name else None
     if clip:
         if old_password is not None:
             to_clipboard(old_password, timeout=0)
-            click.echo("Put old password to clipboard.")
+            click.echo("Copied old password to clipboard.")
             click.pause()
         timeout = option('timeout')
         to_clipboard(password, timeout=timeout)
-        click.echo("Put generated password to clipboard. "
+        click.echo("Copied generated password to clipboard. "
                    "Will clear after %s seconds." % timeout)
-    else:
-        click.echo(password)
 
 
 @cli.command()
