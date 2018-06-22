@@ -35,7 +35,7 @@ def db(tmpdir, monkeypatch):
 
     confpath.write(
         'database: %s\n'
-        'gpg_id: id\n' % dbpath
+        'gpg_id: mail@mail.com\n' % dbpath
     )
 
     dbpath.write(

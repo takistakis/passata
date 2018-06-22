@@ -484,7 +484,7 @@ def init(obj, force, gpg_id, path):
     write_config(confpath, config, force)
     obj.update(config)
     db = DB()
-    db.write(force)
+    db.write(gpg_id, force)
 
 
 @cli.command()
