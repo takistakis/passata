@@ -17,6 +17,8 @@
 
 """Helper functions for the passata test suite."""
 
+import time
+
 import click.testing
 
 import passata
@@ -33,4 +35,5 @@ def run(args, input=None):
 
 def clipboard():
     command = ['xsel', '-o', '-b']
+    time.sleep(0.1)
     return passata.out(command)
