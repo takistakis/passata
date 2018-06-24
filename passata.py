@@ -451,7 +451,8 @@ class DB:
 
 
 # Commands
-@click.group(context_settings={'help_option_names': ['-h', '--help']})
+@click.group(context_settings={'help_option_names': ['-h', '--help'],
+                               'max_content_width': 100})
 @click.option('--config', type=click.Path(dir_okay=False),
               default=os.path.join(click.get_app_dir('passata'), 'config.yml'),
               envvar='PASSATA_CONFIG_PATH',
