@@ -17,10 +17,6 @@
 
 """Tests for passata show."""
 
-import functools
-
-import click
-
 from tests.helpers import clipboard, run
 
 
@@ -86,11 +82,7 @@ def test_show_group_with_trailing_slash(db):
     )
 
 
-def test_show_color(monkeypatch, db, editor):
-    # Do not strip ANSI codes automatically
-    color_echo = functools.partial(click.echo, color=True)
-    monkeypatch.setattr(click, 'echo', color_echo)
-
+def test_show_color(db, editor):
     # Insert a new entry with a list
     editor(updated=(
         'username: user\n'
@@ -112,7 +104,7 @@ def test_show_color(monkeypatch, db, editor):
         '  - youtube\n'
         '  - gmail\n'
     )
-    result = run(['show', 'group', '--no-color'])
+    result = run(['--no-color', 'show', 'group'])
     assert result.output == expected
 
     # Test show with color
@@ -126,5 +118,5 @@ def test_show_color(monkeypatch, db, editor):
         '\033[38;5;9m  - \033[0myoutube\n'
         '\033[38;5;9m  - \033[0mgmail\n'
     )
-    result = run(['show', 'group', '--color'])
+    result = run(['--color', 'show', 'group'])
     assert result.output == expected
