@@ -71,18 +71,16 @@ def out(command, input=None):
     return call(command, stdout=subprocess.PIPE, input=input)
 
 
-def echo(data, color=False):
+def echo(data):
     """Print data to stdout or via a pager if it doesn't fit on screen."""
-    if color:
-        # Bright blue key (color 12) and bright yellow colon (color 11).
-        # Colors are applied manually using ANSI escape codes because
-        # click.style does not support bright colors. The key ends at the
-        # first colon that is followed by either a space or a newline.
-        data = re.sub(r'(^\s*.*?):(\s)',
-                      r'\033[38;5;12m\1\033[38;5;11m:\033[0m\2',
-                      data, flags=re.MULTILINE)
-        data = re.sub(r'(^\s*-\s)', r'\033[38;5;9m\1\033[0m',
-                      data, flags=re.MULTILINE)
+    # Bright blue key (color 12) and bright yellow colon (color 11).
+    # Colors are applied manually using ANSI escape codes because
+    # click.style does not support bright colors. The key ends at the
+    # first colon that is followed by either a space or a newline.
+    data = re.sub(r'(^\s*.*?):(\s)', r'\033[38;5;12m\1\033[38;5;11m:\033[0m\2',
+                  data, flags=re.MULTILINE)
+    data = re.sub(r'(^\s*-\s)', r'\033[38;5;9m\1\033[0m',
+                  data, flags=re.MULTILINE)
     _, terminal_lines = click.get_terminal_size()
     # Plus one line for the prompt
     if data.count('\n') + 1 >= terminal_lines:  # pragma: no cover
@@ -217,7 +215,7 @@ def read_config(confpath):
         'entropy': None,
         'symbols': True,
         'wordlist': None,
-        'color': True,
+        'color': None,
         'timeout': 45,
     }
     try:
@@ -246,7 +244,7 @@ def write_config(confpath, config, force):
         "# symbols: Whether to use symbols in the generated password "
         "[default: true]\n"
         "# wordlist: List of words for passphrase generation\n"
-        "# color: Whether to colorize the output [default: true]\n"
+        "# color: Whether to colorize the output [default: true if terminal]\n"
         "# timeout: Number of seconds until the clipboard is cleared "
         "[default: 45]\n"
         "%s"
@@ -403,7 +401,7 @@ class DB:
             del self.db[groupname]
         return entry
 
-    def list(self, group=None, no_tree=False, color=True):
+    def list(self, group=None, no_tree=False):
         """List entries in a tree-like format."""
         lines = []
         if group:
@@ -417,8 +415,7 @@ class DB:
                 lines.append('%s/%s' % (groupname, entryname))
         else:
             for groupname in self.groups():
-                lines.append(click.style(groupname, fg='blue', bold=True)
-                             if color else groupname)
+                lines.append(click.style(groupname, fg='blue', bold=True))
                 entrynames = list(self.get(groupname))
                 for entryname in entrynames[:-1]:
                     lines.append("├── %s" % entryname)
@@ -457,14 +454,18 @@ class DB:
               default=os.path.join(click.get_app_dir('passata'), 'config.yml'),
               envvar='PASSATA_CONFIG_PATH',
               help="Path of the configuration file.")
+@click.option('--color/--no-color', default=None,
+              help="Whether to colorize the output.")
 @click.version_option(version=__version__)
 @click.pass_context
-def cli(ctx, config):  # noqa: D401
+def cli(ctx, config, color):  # noqa: D401
     """A simple password manager, inspired by pass."""
     ctx.obj = {'_confpath': os.path.abspath(os.path.expanduser(config))}
     # When init is invoked there isn't supposed to be a config file yet
     if ctx.invoked_subcommand != 'init':
-        ctx.obj.update(read_config(config))
+        conf = read_config(config)
+        ctx.color = color if color is not None else conf.get('color')
+        ctx.obj.update(conf)
 
 
 @cli.command()
@@ -490,27 +491,21 @@ def init(obj, force, gpg_id, path):
 @cli.command()
 @click.option('-n', '--no-tree', is_flag=True,
               help="Print entries in 'groupname/entryname' format.")
-@click.option('--color/--no-color', is_flag=True,
-              default=lambda: option('color'),
-              help="Whether to colorize the output.")
 @click.argument('group', required=False)
-def ls(group, no_tree, color):
+def ls(group, no_tree):
     """List entries in a tree-like format."""
     db = DB()
     db.read()
-    db.list(group, no_tree, color)
+    db.list(group, no_tree)
 
 
 @cli.command()
 @click.option('-n', '--no-tree', is_flag=True,
               help="Print entries in 'groupname/entryname' format.")
-@click.option('--color/--no-color', is_flag=True,
-              default=lambda: option('color'),
-              help="Whether to colorize the output.")
 @click.option('-s', '--show', 'show_', is_flag=True, default=False,
               help="Whether to show the found entries.")
 @click.argument('names', nargs=-1)
-def find(names, no_tree, color, show_):
+def find(names, no_tree, show_):
     """List matching entries in a tree-like format."""
     db = DB()
     db.read()
@@ -526,19 +521,16 @@ def find(names, no_tree, color, show_):
                 matches.put('%s (%s)' % (name, keyword), db.get(name))
                 break
     if show_:
-        echo(to_string(matches.db).strip(), color)
+        echo(to_string(matches.db).strip())
     else:
-        matches.list(no_tree=no_tree, color=color)
+        matches.list(no_tree=no_tree)
 
 
 @cli.command(short_help="Show entry, group or the whole database.")
 @click.option('-c', '--clip', is_flag=True,
               help="Copy password to clipboard instead of printing.")
-@click.option('--color/--no-color', is_flag=True,
-              default=lambda: option('color'),
-              help="Whether to colorize the output.")
 @click.argument('name', required=False)
-def show(name, clip, color):
+def show(name, clip):
     """Decrypt and print the contents of NAME.
 
     NAME can be an entry, a group, or omitted to print the whole database. If
@@ -558,7 +550,7 @@ def show(name, clip, color):
             sys.exit("Can't put the entire group to clipboard")
         to_clipboard(entry['password'], timeout=option('timeout'))
     else:
-        echo(to_string(entry).strip(), color)
+        echo(to_string(entry).strip())
 
 
 def do_insert(name, password, force):
