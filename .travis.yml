@@ -12,7 +12,6 @@ matrix:
       env: TOX_ENV=py35
     - env: TOX_ENV=py36
     - env: TOX_ENV=flake8
-    - env: TOX_ENV=pylint
     - env: TOX_ENV=pyroma
     - env: TOX_ENV=check-manifest
 cache: pip

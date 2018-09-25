@@ -681,7 +681,7 @@ def edit(name):
         """Custom pyinotify event handler."""
 
         @staticmethod
-        def process_IN_MODIFY(event):  # pylint: disable=invalid-name
+        def process_IN_MODIFY(event):
             """Update the database each time the temporary file is saved."""
             if event.pathname != fp.name:
                 return
@@ -707,8 +707,7 @@ def edit(name):
     notifier = pyinotify.ThreadedNotifier(manager, EventHandler())
     notifier.start()
     tmpdir = os.path.dirname(fp.name)
-    mask = pyinotify.IN_MODIFY  # pylint: disable=no-member
-    watch = manager.add_watch(tmpdir, mask)
+    watch = manager.add_watch(tmpdir, pyinotify.IN_MODIFY)
     click.edit(filename=fp.name, editor=option('editor'))
     manager.rm_watch(watch[tmpdir])
     notifier.stop()
@@ -862,4 +861,4 @@ def autotype():
 
 
 if __name__ == '__main__':
-    cli()  # pylint: disable=no-value-for-parameter
+    cli()
