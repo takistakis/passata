@@ -157,4 +157,4 @@ def test_autotype_invalid(monkeypatch, db, editor):
 
     window_title = 'test4'
     result = run(['autotype'])
-    assert repr(result.exception) == 'SystemExit(1,)'
+    assert isinstance(result.exception, SystemExit)
