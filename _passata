@@ -99,6 +99,12 @@ _passata() {
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;
+
+        autotype)
+          _arguments -s : \
+            '(-s --sequence)'{-s,--sequence}'[Autotype sequence]:string:' \
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
+          ;;
       esac
       ;;
   esac
