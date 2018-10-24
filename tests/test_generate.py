@@ -29,7 +29,7 @@ ALPHANUMERIC = (
     '0123456789'
 )
 
-SYMBOLS = '!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
+SYMBOLS = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"""
 
 
 def test_generate_password_length_no_symbols():
