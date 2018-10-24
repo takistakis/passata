@@ -828,7 +828,8 @@ def get_autotype(entry):
 
 
 @cli.command()
-def autotype():
+@click.option('-s', '--sequence', help="Autotype sequence.")
+def autotype(sequence):
     """Type login credentials."""
     db = DB()
     db.read()
@@ -854,7 +855,8 @@ def autotype():
         choice = out(command, input=choices).strip()
 
     entry = db.get(choice)
-    for key in get_autotype(entry):
+    autotype = sequence.split() if sequence else get_autotype(entry)
+    for key in autotype:
         if active_window() != window:  # pragma: no cover
             die("Window has changed")
         keyboard(key, entry)
