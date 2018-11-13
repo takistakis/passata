@@ -56,9 +56,9 @@ def test_autotype(monkeypatch, db):
     result = run(['autotype'])
     assert result.exception is None
     assert result.output == (
-        "['xdotool', 'type', '--clearmodifiers', 'takis']\n"
+        "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'takis']\n"
         "['xdotool', 'key', 'Tab']\n"
-        "['xdotool', 'type', '--clearmodifiers', 'gh']\n"
+        "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'gh']\n"
         "['xdotool', 'key', 'Return']\n"
     )
 
@@ -73,7 +73,7 @@ def test_autotype_no_username(monkeypatch, db):
     result = run(['autotype'])
     assert result.exception is None
     assert result.output == (
-        "['xdotool', 'type', '--clearmodifiers', 'pass1']\n"
+        "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'pass1']\n"
         "['xdotool', 'key', 'Return']\n"
     )
 
@@ -93,7 +93,7 @@ def test_autotype_keywords_simple(monkeypatch, db, editor):
     result = run(['autotype'])
     assert result.exception is None
     assert result.output == (
-        "['xdotool', 'type', '--clearmodifiers', 'pass2']\n"
+        "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'pass2']\n"
         "['xdotool', 'key', 'Return']\n"
     )
 
@@ -136,10 +136,10 @@ def test_autotype_keywords_complex(monkeypatch, db, editor):
         "autotype/test3\n"
         "internet/github\n"
         "\n"
-        "['xdotool', 'type', '--clearmodifiers', 'user3']\n"
+        "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'user3']\n"
         "['xdotool', 'key', 'Return']\n"
         "Sleeping for 1.5\n"
-        "['xdotool', 'type', '--clearmodifiers', 'pass3']\n"
+        "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'pass3']\n"
         "['xdotool', 'key', 'Return']\n"
     )
 

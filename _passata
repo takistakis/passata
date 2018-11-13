@@ -103,6 +103,7 @@ _passata() {
         autotype)
           _arguments -s : \
             '(-s --sequence)'{-s,--sequence}'[Autotype sequence]:string:' \
+            '(-d --delay)'{-d,--delay}'[Delay between keystrokes in milliseconds]:int:' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           ;;
       esac

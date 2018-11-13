@@ -798,14 +798,15 @@ def active_window():  # pragma: no cover
     return window_id, window_name
 
 
-def keyboard(key, entry):
+def keyboard(key, entry, delay):
     """Simulate keyboard input for `key` using xdotool."""
     if key[0] == '<' and key[-1] == '>':
         value = entry.get(key[1:-1])
         if not value:
             die("%s not found" % key[1:-1])
         # `value` could be an int so we explicitly convert it to str
-        call(['xdotool', 'type', '--clearmodifiers', str(value)])
+        call(['xdotool', 'type', '--clearmodifiers', '--delay', delay,
+              str(value)])
     elif key[0] == '!':
         duration = float(key[1:])
         time.sleep(duration)
@@ -829,7 +830,9 @@ def get_autotype(entry):
 
 @cli.command()
 @click.option('-s', '--sequence', help="Autotype sequence.")
-def autotype(sequence):
+@click.option('-d', '--delay', default='50',
+              help="Delay between keystrokes in milliseconds.")
+def autotype(sequence, delay):
     """Type login credentials."""
     db = DB()
     db.read()
@@ -859,7 +862,7 @@ def autotype(sequence):
     for key in autotype:
         if active_window() != window:  # pragma: no cover
             die("Window has changed")
-        keyboard(key, entry)
+        keyboard(key, entry, delay)
 
 
 if __name__ == '__main__':
