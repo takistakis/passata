@@ -82,12 +82,8 @@ def echo(data):
                   data, flags=re.MULTILINE)
     data = re.sub(r'(^\s*-\s)', r'\033[38;5;9m\1\033[0m',
                   data, flags=re.MULTILINE)
-    _, terminal_lines = click.get_terminal_size()
-    # Plus one line for the prompt
-    if data.count('\n') + 1 >= terminal_lines:  # pragma: no cover
-        click.echo_via_pager(data)
-    else:
-        click.echo(data)
+    os.environ['LESS'] = os.environ.get('LESS', 'FRX')
+    click.echo_via_pager(data)
 
 
 def die(message):
