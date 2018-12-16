@@ -30,22 +30,20 @@ import passata
 
 
 @click.command()
-@click.option('--config', type=click.Path(dir_okay=False),
+@click.option('--config', 'confpath', type=click.Path(dir_okay=False),
               default=os.path.join(click.get_app_dir('passata'), 'config.yml'),
               envvar='PASSATA_CONFIG_PATH',
               help="Path of the configuration file.")
 @click.argument('file', type=click.File())
-@click.pass_context
-def import_csv(ctx, config, file):
+def import_csv(confpath, file):
     """Migrate a keepassx2 csv database to passata yaml format.
 
     Unlike keepassx2, in passata each entry must be in a group and groups
     cannot be nested. So, if an entry in the csv file has any of these
     properties, this script will fail.
     """
-    ctx.obj = passata.read_config(config)
-
-    db = passata.DB()
+    config = passata.read_config(confpath)
+    db = passata.DB(config['database'])
     next(file)  # Skip headers
     for line in csv.reader(file):
         group, title, username, password, url, notes = line
@@ -64,7 +62,7 @@ def import_csv(ctx, config, file):
             entry['notes'] = notes
         db.put(name, entry)
 
-    db.write(force=False)
+    db.write(config['gpg_id'], force=False)
 
 
 if __name__ == '__main__':
