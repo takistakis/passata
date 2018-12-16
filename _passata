@@ -58,7 +58,9 @@ _passata() {
 
         show)
           _arguments -s : \
-            '(-c --clip)'{-c,--clip}'[Copy password to clipboard instead of printing]' \
+            '(-c --clip -C --no-clip)'{-c,--clip}'[Copy password to clipboard]' \
+            '(-c --clip -C --no-clip)'{-C,--no-clip}'[Print password]' \
+            '(-t --timeout)'{-t,--timeout}'[Number of seconds until the clipboard is cleared]:int:' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;
@@ -78,6 +80,7 @@ _passata() {
             '(-p --print -P --no-print)'{-P,--no-print}'[Do not print password]' \
             '(-c --clip -C --no-clip)'{-c,--clip}'[Copy password to clipboard]' \
             '(-c --clip -C --no-clip)'{-C,--no-clip}'[Do not copy password to clipboard]' \
+            '(-t --timeout)'{-t,--timeout}'[Number of seconds until the clipboard is cleared]:int:' \
             '(-l --length -e --entropy)'{-l,--length}'[Length of the generated password]:int:' \
             '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given bits of entropy]:int:' \
             '(--symbols --no-symbols -w --wordlist)--symbols[Use symbols in the generated password]' \
@@ -89,6 +92,7 @@ _passata() {
 
         edit)
           _arguments -s : \
+            '(-e --editor)'{-e,--editor}'[Which editor to use]:string:' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;
@@ -104,6 +108,7 @@ _passata() {
           _arguments -s : \
             '(-s --sequence)'{-s,--sequence}'[Autotype sequence]:string:' \
             '(-d --delay)'{-d,--delay}'[Delay between keystrokes in milliseconds]:int:' \
+            '(-m --menu)'{-m,--menu}'[dmenu provider command]:string:' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           ;;
       esac
