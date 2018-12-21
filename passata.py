@@ -51,7 +51,7 @@ def call(command, stdout=None, input=None):
     try:
         return subprocess.run(
             command,
-            input=input,
+            input=str(input),
             stdout=stdout,
             stderr=subprocess.DEVNULL,
             check=True,
