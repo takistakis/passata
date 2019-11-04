@@ -258,8 +258,8 @@ class DB:
             sys.exit("Database file (%s) does not exist" % self.path)
         if lock:
             lock_file(self.path)
-        data = self.decrypt(self.path)
-        self.db = to_dict(data)
+        self.data = self.decrypt(self.path)
+        self.db = to_dict(self.data)
 
     @staticmethod
     def encrypt(data, gpg_id):  # pragma: no cover
@@ -271,6 +271,8 @@ class DB:
         assert self.path is not None
         confirm_overwrite(self.path, force)
         data = to_string(self.db)
+        if data == getattr(self, 'data', None):
+            return
         encrypted = self.encrypt(data, gpg_id)
         # Write to a temporary file, make sure the data has reached the
         # disk and replace the database with the temporary file using
