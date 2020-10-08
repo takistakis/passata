@@ -588,7 +588,7 @@ def generate_password(length, entropy, symbols, wordlist, force):
         pool = ''.join(chargroups)
     if entropy is not None:
         length = math.ceil(entropy / math.log2(len(pool)))
-    entropy = math.log2(len(pool) ** length)
+    entropy = length * math.log2(len(pool))
     if entropy < 32:
         msg = "Generate password with only %.3f bits of entropy?" % entropy
         confirm(msg, force)
