@@ -24,6 +24,7 @@ import collections
 import fcntl
 import math
 import os
+import pathlib
 import random
 import re
 import shlex
@@ -32,6 +33,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from typing import Optional
 
 import click
 import watchdog.events
@@ -246,9 +248,15 @@ def default_gpg_id():
 class DB:
     """A passata database."""
 
+    path = None
+    pre_read_hook: Optional[pathlib.Path] = None
+    post_write_hook: Optional[pathlib.Path] = None
+    registered_post_write_hook: bool = False
+
     def __init__(self, path=None):
         self.db = collections.OrderedDict()
-        self.path = os.path.expanduser(path) if path else None
+        if path:
+            self.path = path
 
     def __iter__(self):
         for groupname in self.db:
@@ -267,6 +275,7 @@ class DB:
 
     def read(self, lock=False):
         """Return the database as a plaintext string."""
+        self.execute_pre_read_hook()
         assert self.path is not None
         if not os.path.isfile(self.path):
             sys.exit("Database file (%s) does not exist" % self.path)
@@ -299,6 +308,9 @@ class DB:
         fd.close()
         os.replace(fd.name, self.path)
         self.data = data
+        if not self.registered_post_write_hook:
+            atexit.register(self.execute_post_write_hook)
+            self.registered_post_write_hook = True
 
     def get(self, name):
         """Return database, group or entry."""
@@ -422,6 +434,16 @@ class DB:
         for groupname in self.db:
             self.sort_group(groupname)
 
+    def execute_pre_read_hook(self):
+        """Execute pre-read hook if existing."""
+        if self.pre_read_hook is not None:
+            call(self.pre_read_hook)
+
+    def execute_post_write_hook(self):
+        """Execute post-write hook if existing."""
+        if self.post_write_hook is not None:
+            call(self.post_write_hook)
+
 
 # Commands
 @click.group(context_settings={'help_option_names': ['-h', '--help'],
@@ -436,7 +458,7 @@ class DB:
 @click.pass_context
 def cli(ctx, confpath, color):
     """A simple password manager, inspired by pass."""  # noqa: D401
-    confpath = os.path.abspath(os.path.expanduser(confpath))
+    confpath = pathlib.Path(confpath).expanduser()
     ctx.obj = {'_confpath': confpath}
     command = ctx.invoked_subcommand
     # When init is invoked there isn't supposed to be a config file yet
@@ -450,6 +472,14 @@ def cli(ctx, confpath, color):
             and key not in cmd_config
         })
         ctx.color = color if color is not None else config.get('color')
+        DB.path = os.path.expanduser(config['database'])
+        confdir = confpath.parent
+        pre_read_hook = confdir / 'hooks' / 'pre-read'
+        if pre_read_hook.is_file():
+            DB.pre_read_hook = pre_read_hook
+        post_write_hook = confdir / 'hooks' / 'post-write'
+        if post_write_hook.is_file():
+            DB.post_write_hook = post_write_hook
         # We put the config in obj for the options that
         # don't correspond to a command-line option.
         ctx.obj.update(config)
@@ -481,10 +511,9 @@ def init(obj, force, gpg_id, dbpath):
 @click.option('-n', '--no-tree', is_flag=True,
               help="Print entries in 'groupname/entryname' format.")
 @click.argument('group', required=False)
-@click.pass_obj
-def ls(config, group, no_tree):
+def ls(group, no_tree):
     """List entries in a tree-like format."""
-    db = DB(config['database'])
+    db = DB()
     db.read()
     db.list(group, no_tree)
 
@@ -495,10 +524,9 @@ def ls(config, group, no_tree):
 @click.option('-s', '--show', 'show_', is_flag=True,
               help="Whether to show the found entries.")
 @click.argument('names', nargs=-1)
-@click.pass_obj
-def find(config, names, no_tree, show_):
+def find(names, no_tree, show_):
     """List matching entries in a tree-like format."""
-    db = DB(config['database'])
+    db = DB()
     db.read()
     names = [name.lower() for name in names]
     matches = DB()
@@ -523,15 +551,14 @@ def find(config, names, no_tree, show_):
 @click.option('-t', '--timeout', default=45,
               help="Number of seconds until the clipboard is cleared.")
 @click.argument('name', required=False)
-@click.pass_obj
-def show(config, name, clip, timeout):
+def show(name, clip, timeout):
     """Decrypt and print the contents of NAME.
 
     NAME can be an entry, a group, or omitted to print the whole database. If
     NAME is an entry and --clip is specified, the password will stay in the
     clipboard until it is pasted.
     """
-    db = DB(config['database'])
+    db = DB()
     db.read()
     entry = db.get(name)
     if entry is None:
@@ -555,7 +582,7 @@ def do_insert(config, name, password, force):
     """
     if isgroup(name):
         sys.exit("%s is a group" % name)
-    db = DB(config['database'])
+    db = DB()
     db.read(lock=True)
     entry = db.get(name)
     old_password = None
@@ -691,7 +718,7 @@ def edit(config, name, editor):
             db.put(name, data)
             db.write(config['gpg_id'])
 
-    db = DB(config['database'])
+    db = DB()
     db.read(lock=True)
     subdict = db.get(name) or collections.OrderedDict()
     original = to_string(subdict)
@@ -740,7 +767,7 @@ def edit(config, name, editor):
 @click.pass_obj
 def rm(config, names, force):
     """Remove entries or groups."""
-    db = DB(config['database'])
+    db = DB()
     db.read(lock=True)
     if len(names) == 1:
         if db.pop(names[0], force) is None:
@@ -765,7 +792,7 @@ def rm(config, names, force):
 @click.pass_obj
 def mv(config, source, dest, force):
     """Rename SOURCE to DEST or move SOURCE(s) to GROUP."""
-    db = DB(config['database'])
+    db = DB()
     db.read(lock=True)
     if len(source) > 1 and not isgroup(dest):
         sys.exit("%s is not a group" % dest)
@@ -842,10 +869,9 @@ def get_autotype(entry):
               help="Delay between keystrokes in milliseconds.")
 @click.option('-m', '--menu', default=['dmenu'],
               help="dmenu provider command.")
-@click.pass_obj
-def autotype(config, sequence, delay, menu):
+def autotype(sequence, delay, menu):
     """Type login credentials."""
-    db = DB(config['database'])
+    db = DB()
     db.read()
     window = active_window()
 
