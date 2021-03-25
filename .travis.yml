@@ -7,13 +7,13 @@ addons:
       - xsel
 matrix:
   include:
-    - python: 3.5
-      env: TOX_ENV=py35
     - python: 3.6
       env: TOX_ENV=py36
     - python: 3.7
       env: TOX_ENV=py37
     - env: TOX_ENV=py38
+    - python: 3.9-dev
+      env: TOX_ENV=py39
     - env: TOX_ENV=flake8
     - env: TOX_ENV=pyroma
     - env: TOX_ENV=check-manifest

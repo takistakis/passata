@@ -419,8 +419,8 @@ class DB:
               help="Whether to colorize the output.")
 @click.version_option(version=__version__)
 @click.pass_context
-def cli(ctx, confpath, color):  # noqa: D401
-    """A simple password manager, inspired by pass."""
+def cli(ctx, confpath, color):
+    """A simple password manager, inspired by pass."""  # noqa: D401
     confpath = os.path.abspath(os.path.expanduser(confpath))
     ctx.obj = {'_confpath': confpath}
     command = ctx.invoked_subcommand
