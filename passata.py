@@ -234,6 +234,7 @@ class DB:
     """A passata database."""
 
     path = None
+    pre_read_hook = None
     post_write_hook = None
 
     def __init__(self, path=None):
@@ -258,6 +259,7 @@ class DB:
 
     def read(self, lock=False):
         """Return the database as a plaintext string."""
+        self.execute_pre_read_hook()
         assert self.path is not None
         if not os.path.isfile(self.path):
             sys.exit("Database file (%s) does not exist" % self.path)
@@ -415,6 +417,10 @@ class DB:
         for groupname in self.db:
             self.sort_group(groupname)
 
+    def execute_pre_read_hook(self):
+        if self.pre_read_hook is not None:
+            subprocess.run(self.pre_read_hook, shell=True, check=True)
+
     def execute_post_write_hook(self):
         if self.post_write_hook is not None:
             subprocess.run(self.post_write_hook, shell=True)
@@ -448,6 +454,7 @@ def cli(ctx, confpath, color):
         })
         ctx.color = color if color is not None else config.get('color')
         DB.path = os.path.expanduser(config['database'])
+        DB.pre_read_hook = config.get('pre_read_hook')
         DB.post_write_hook = config.get('post_write_hook')
         DB.registered_post_write_hook = False
         # We put the config in obj for the options that
