@@ -17,6 +17,7 @@
 
 """Helper functions for the passata test suite."""
 
+import sys
 import time
 
 import click.testing
@@ -34,6 +35,6 @@ def run(args, input=None):
 
 
 def clipboard():
-    command = ['xsel', '-o', '-b']
+    command = ['pbpaste'] if sys.platform == 'darwin' else ['xsel', '-o', '-b']
     time.sleep(0.1)
     return passata.out(command)

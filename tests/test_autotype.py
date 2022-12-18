@@ -17,10 +17,15 @@
 
 """Tests for passata autotype."""
 
+import sys
+
 import pytest
 
 import passata
 from tests.helpers import run
+
+if sys.platform == "darwin":
+    pytest.skip("Skipping Linux-only tests", allow_module_level=True)
 
 
 def test_get_autotype(monkeypatch):

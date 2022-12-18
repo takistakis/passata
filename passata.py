@@ -128,10 +128,42 @@ def unlock_file(path):
         pass
 
 
+def schedule_clear_clipboard(timeout: int) -> None:
+    """Clear clipboard after timeout seconds.
+
+    Write a bash script in /tmp/ and execute it on the background.
+    """
+    scriptpath = "/tmp/clear-clipboard.sh"
+
+    with open(scriptpath, "w") as f:
+        f.writelines(
+            [
+                "#!/bin/bash\n",
+                "\n",
+                f"sleep {timeout}\n",
+                "echo -n '' | pbcopy\n",
+            ]
+        )
+
+    os.chmod(scriptpath, 0o755)
+
+    subprocess.Popen(scriptpath, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
 def to_clipboard(data, timeout):
-    """Put `data` to clipbord until `timeout` seconds pass."""
-    command = ['xsel', '-i', '-b', '-t', str(timeout * 1000)]
+    """Put `data` to clipboard until `timeout` seconds pass.
+
+    If `timeout` is 0, the clipboard is not cleared.
+    """
+    command = (
+        ['pbcopy', 'w']
+        if sys.platform == 'darwin'
+        else ['xsel', '-i', '-b', '-t', str(timeout * 1000)]
+    )
     call(command, input=data)
+
+    if sys.platform == "darwin" and timeout > 0:
+        schedule_clear_clipboard(timeout)
 
 
 def confirm(message, force):
@@ -634,8 +666,7 @@ def generate(config, name, force, print_, clip, timeout, length, entropy,
             click.echo("Copied old password to clipboard.")
             click.pause()
         to_clipboard(password, timeout=timeout)
-        click.echo("Copied generated password to clipboard. "
-                   "Will clear after %s seconds." % timeout)
+        click.echo("Copied generated password to clipboard.")
 
 
 @cli.command()
