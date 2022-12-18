@@ -17,6 +17,8 @@
 
 """Tests for passata generate."""
 
+import sys
+
 import click
 import pytest
 
@@ -104,10 +106,15 @@ def patch(monkeypatch):
         click, 'pause', lambda: print("Press any key to continue ...")
     )
     # Clear the clipboard before and after the test
-    command = ['xsel', '-c', '-b']
-    passata.out(command)
+    if sys.platform == 'darwin':
+        input = ''
+        command = ['pbcopy', 'w']
+    else:
+        input = None
+        command = ['xsel', '-c', '-b']
+    passata.out(command, input=input)
     yield
-    passata.out(command)
+    passata.out(command, input=input)
 
 
 def assert_password_in_output(result):
@@ -120,10 +127,7 @@ def assert_password_in_output(result):
 def assert_password_in_clipboard(result):
     assert result.exit_code == 0
     assert result.exception is None
-    assert result.output == (
-        "Copied generated password to clipboard. "
-        "Will clear after 45 seconds.\n"
-    )
+    assert result.output == "Copied generated password to clipboard.\n"
     assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
 
 
@@ -132,8 +136,7 @@ def assert_password_in_output_and_clipboard(result):
     assert result.exception is None
     assert result.output == (
         "xxxxxxxxxxxxxxxxxxxx\n"
-        "Copied generated password to clipboard. "
-        "Will clear after 45 seconds.\n"
+        "Copied generated password to clipboard.\n"
     )
     assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
 
@@ -202,8 +205,7 @@ def test_generate_put_in_existing_entry_clip(patch, db):
     assert result.output == (
         "Copied old password to clipboard.\n"
         "Press any key to continue ...\n"
-        "Copied generated password to clipboard. "
-        "Will clear after 45 seconds.\n"
+        "Copied generated password to clipboard.\n"
     )
     assert clipboard() == 'xxxxxxxxxxxxxxxxxxxx'
     assert read(db) == (

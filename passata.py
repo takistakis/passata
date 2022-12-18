@@ -130,7 +130,11 @@ def unlock_file(path):
 
 def to_clipboard(data, timeout):
     """Put `data` to clipbord until `timeout` seconds pass."""
-    command = ['xsel', '-i', '-b', '-t', str(timeout * 1000)]
+    command = (
+        ['pbcopy', 'w']
+        if sys.platform == 'darwin'
+        else ['xsel', '-i', '-b', '-t', str(timeout * 1000)]
+    )
     call(command, input=data)
 
 
@@ -635,8 +639,7 @@ def generate(config, name, force, print_, clip, timeout, length, entropy,
             click.echo("Copied old password to clipboard.")
             click.pause()
         to_clipboard(password, timeout=timeout)
-        click.echo("Copied generated password to clipboard. "
-                   "Will clear after %s seconds." % timeout)
+        click.echo("Copied generated password to clipboard.")
 
 
 @cli.command()
