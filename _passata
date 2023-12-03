@@ -62,14 +62,15 @@ _passata() {
             '(-n --no-tree)'{-n,--no-tree}'[Print entries in <group>/<name> format]' \
             '(-p --print)'{-p,--print}'[Show the found entries]' \
             '(-c --clip -C --no-clip)'{-c,--clip}'[Copy password to clipboard]' \
-            '(-c --clip -C --no-clip)'{-C,--no-clip}'[Print password]' \
+            '(-c --clip -C --no-clip)'{-C,--no-clip}'[Do not copy password to clipboard]' \
+            '(-t --timeout)'{-t,--timeout}'[Number of seconds until the clipboard is cleared]:int:' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           ;;
 
         show)
           _arguments -s : \
             '(-c --clip -C --no-clip)'{-c,--clip}'[Copy password to clipboard]' \
-            '(-c --clip -C --no-clip)'{-C,--no-clip}'[Print password]' \
+            '(-c --clip -C --no-clip)'{-C,--no-clip}'[Print entry]' \
             '(-t --timeout)'{-t,--timeout}'[Number of seconds until the clipboard is cleared]:int:' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries

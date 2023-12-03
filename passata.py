@@ -634,6 +634,12 @@ def ls(obj: Obj, group: str | None, no_tree: bool) -> None:
     default=False,
     help="Copy the first result's password to clipboard.",
 )
+@click.option(
+    "-t",
+    "--timeout",
+    default=45,
+    help="Number of seconds until the clipboard is cleared.",
+)
 @click.argument("names", nargs=-1)
 @click.pass_obj
 def find(
@@ -642,6 +648,7 @@ def find(
     no_tree: bool,
     print_: bool,
     clip: bool,
+    timeout: int,
 ) -> None:
     """List matching entries in a tree-like format."""
     db: DB = obj["_db"]
@@ -657,7 +664,7 @@ def find(
         groupname, entryname = next(iter(matches))
         first_match = matches.get(f"{groupname}/{entryname}")
         assert first_match is not None
-        to_clipboard(first_match["password"], timeout=0)
+        to_clipboard(first_match["password"], timeout)
         click.echo()
         click.echo(f"Copied password of {groupname}/{entryname} to clipboard.")
 
@@ -682,7 +689,7 @@ def show(obj: Obj, name: str | None, clip: bool, timeout: int) -> None:
 
     NAME can be an entry, a group, or omitted to print the whole database. If
     NAME is an entry and --clip is specified, the password will stay in the
-    clipboard until it is pasted.
+    clipboard for `timeout` seconds.
     """
     db: DB = obj["_db"]
     db.read()
