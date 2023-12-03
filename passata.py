@@ -64,7 +64,7 @@ def call(command, stdout=None, input=None):
     except subprocess.CalledProcessError as e:
         sys.exit(str(e))
     except FileNotFoundError:
-        sys.exit("Executable '%s' not found" % command[0])
+        sys.exit(f"Executable '{command[0]}' not found")
 
 
 def out(command, input=None):
@@ -108,7 +108,7 @@ def lock_file(path):
     """
     # Don't lock the file itself because the lock would get lost on
     # write, and if we're editing, it could be written multiple times.
-    lockpath = '%s.lock' % path
+    lockpath = f'{path}.lock'
 
     # Open with 'a' (i.e. append) to prevent truncation
     lock = open(lockpath, 'a', encoding='utf-8')
@@ -132,7 +132,7 @@ def lock_file(path):
 
 def unlock_file(path):
     """Remove the lock file, which also releases the lock."""
-    lockpath = '%s.lock' % path
+    lockpath = f'{path}.lock'
     try:
         os.unlink(lockpath)
     except FileNotFoundError:
@@ -186,7 +186,7 @@ def confirm(message, force):
 def confirm_overwrite(filename, force):
     """Exit if the file exists and the user wants it."""
     if os.path.isfile(filename):
-        confirm("Overwrite %s?" % filename, force)
+        confirm(f"Overwrite {filename}?", force)
 
 
 def isgroup(name):
@@ -204,7 +204,7 @@ def split(name):
         try:
             groupname, entryname = name.split('/')
         except ValueError:
-            sys.exit("%s is nested too deeply" % name)
+            sys.exit(f"{name} is nested too deeply")
 
     return groupname, entryname
 
@@ -306,7 +306,7 @@ class DB:
         self.execute_pre_read_hook()
         assert self.path is not None
         if not os.path.isfile(self.path):
-            sys.exit("Database file (%s) does not exist" % self.path)
+            sys.exit(f"Database file ({self.path}) does not exist")
         if lock:
             lock_file(self.path)
         self.data = self.decrypt(self.path)
@@ -403,7 +403,7 @@ class DB:
 
         # Remove a whole group
         if not entryname:
-            confirm("Delete group '%s'?" % groupname, force)
+            confirm(f"Delete group '{groupname}'?", force)
             return self.db.pop(groupname)
 
         # Entry should exist
@@ -411,7 +411,7 @@ class DB:
             return None
 
         # Remove a single entry
-        confirm("Delete '%s'?" % name, force)
+        confirm(f"Delete '{name}'?", force)
         entry = self.db[groupname].pop(entryname)
         if not self.db[groupname]:
             del self.db[groupname]
@@ -423,14 +423,14 @@ class DB:
         if group:
             groupname = group.rstrip('/')
             if groupname not in self.groups():
-                sys.exit("%s not found" % groupname)
+                sys.exit(f"{groupname} not found")
             group = self.get(groupname)
             assert group is not None
             for entryname in group:
                 lines.append(entryname)
         elif no_tree:
             for groupname, entryname in self:
-                lines.append('%s/%s' % (groupname, entryname))
+                lines.append(f'{groupname}/{entryname}')
         else:
             for groupname in self.groups():
                 lines.append(click.style(groupname, fg='blue', bold=True))
@@ -438,8 +438,8 @@ class DB:
                 assert group is not None
                 entrynames = list(group)
                 for entryname in entrynames[:-1]:
-                    lines.append("├── %s" % entryname)
-                lines.append("└── %s" % entrynames[-1])
+                    lines.append(f"├── {entryname}")
+                lines.append(f"└── {entrynames[-1]}")
         if lines:
             echo('\n'.join(lines))
 
@@ -574,13 +574,13 @@ def find(names, no_tree, print_):
     names = [name.lower() for name in names]
     matches = DB()
     for groupname, entryname in db:
-        name = '%s/%s' % (groupname, entryname)
+        name = f'{groupname}/{entryname}'
         if any(name in entryname.lower() for name in names):
             matches.put(name, db.get(name))
             continue
         for keyword in db.keywords(name):
             if any(name in keyword for name in names):
-                matches.put('%s (%s)' % (name, keyword), db.get(name))
+                matches.put(f'{name} ({keyword})', db.get(name))
                 break
     if print_:
         echo(to_string(matches.db).strip())
@@ -605,7 +605,7 @@ def show(name, clip, timeout):
     db.read()
     entry = db.get(name)
     if entry is None:
-        sys.exit("%s not found" % name)
+        sys.exit(f"{name} not found")
 
     if clip:
         if name is None:
@@ -624,7 +624,7 @@ def do_insert(config, name, password, force):
     Return the old password or None if there wasn't one.
     """
     if isgroup(name):
-        sys.exit("%s is a group" % name)
+        sys.exit(f"{name} is a group")
     db = DB()
     db.read(lock=True)
     entry = db.get(name)
@@ -633,7 +633,7 @@ def do_insert(config, name, password, force):
         db.put(name, {'password': password})
     else:
         if 'password' in entry:
-            confirm("Overwrite %s?" % name, force)
+            confirm(f"Overwrite {name}?", force)
             old_password = entry['password']
             entry['old_password'] = old_password
         entry['password'] = password
@@ -665,7 +665,7 @@ def generate_password(length, entropy, symbols, wordlist, force):
             with open(wordlist, encoding='utf-8') as f:
                 pool = f.read().strip().split('\n')
         except FileNotFoundError:
-            sys.exit("%s: No such file or directory" % wordlist)
+            sys.exit(f"{wordlist}: No such file or directory")
     else:
         chargroups = [string.ascii_letters, string.digits]
         if symbols:
@@ -675,11 +675,11 @@ def generate_password(length, entropy, symbols, wordlist, force):
         length = math.ceil(entropy / math.log2(len(pool)))
     entropy = length * math.log2(len(pool))
     if entropy < 32:
-        msg = "Generate password with only %.3f bits of entropy?" % entropy
+        msg = f"Generate password with only {entropy:.3f} bits of entropy?"
         confirm(msg, force)
     sep = ' ' if wordlist else ''
     password = sep.join(choice(pool) for _ in range(length))
-    click.echo("Generated password with %.3f bits of entropy" % entropy)
+    click.echo(f"Generated password with {entropy:.3f} bits of entropy")
     return password
 
 
@@ -766,7 +766,7 @@ def edit(config, name, editor):
     original = to_string(subdict)
     # Describe what is being edited in a comment at the top
     comment = name or "passata database"
-    text = "# %s\n%s" % (comment, original)
+    text = f"# {comment}\n{original}"
 
     temp = tempfile.NamedTemporaryFile(
         mode='w+', prefix='passata-', suffix='.yml'
@@ -813,15 +813,15 @@ def rm(config, names, force):
     db.read(lock=True)
     if len(names) == 1:
         if db.pop(names[0], force) is None:
-            sys.exit("%s not found" % names[0])
+            sys.exit(f"{names[0]} not found")
         db.write(config['gpg_id'])
         return
 
-    confirm("Delete %s arguments?" % len(names), force)
+    confirm(f"Delete {len(names)} arguments?", force)
 
     for name in names:
         if db.pop(name, force=True) is None:
-            sys.exit("%s not found" % name)
+            sys.exit(f"{name} not found")
 
     db.write(config['gpg_id'])
 
@@ -837,24 +837,24 @@ def mv(config, source, dest, force):
     db = DB()
     db.read(lock=True)
     if len(source) > 1 and not isgroup(dest):
-        sys.exit("%s is not a group" % dest)
+        sys.exit(f"{dest} is not a group")
 
     if len(source) == 1 and isgroup(source[0]):
         if not isgroup(dest):
-            sys.exit("%s is not a group" % dest)
+            sys.exit(f"{dest} is not a group")
         groupname = source[0]
         if db.get(groupname) is None:
-            sys.exit("%s not found" % groupname)
+            sys.exit(f"{groupname} not found")
         if db.get(dest) is not None:
             # Do not implicitly remove a whole group even by asking the
             # user. Instead we could prompt for merging the two groups.
-            sys.exit("%s already exists" % dest)
+            sys.exit(f"{dest} already exists")
         group = db.pop(groupname, force=True)
         db.put(dest, group)
     else:
         for name in source:
             if db.get(name) is None:
-                sys.exit("%s not found" % name)
+                sys.exit(f"{name} not found")
             _, entryname = split(name)
             assert entryname is not None
             # os.path.join() because using '/'.join('groupname/', 'entryname')
@@ -865,7 +865,7 @@ def mv(config, source, dest, force):
                 else dest
             )
             if db.get(newname) is not None:
-                confirm("Overwrite %s?" % newname, force)
+                confirm(f"Overwrite {newname}?", force)
             entry = db.pop(name, force=True)
             db.put(newname, entry)
 
@@ -885,7 +885,7 @@ def keyboard(key, entry, delay):
     if key[0] == '<' and key[-1] == '>':
         value = entry.get(key[1:-1])
         if not value:
-            die("%s not found" % key[1:-1])
+            die(f"{key[1:-1]} not found")
         # `value` could be an int so we explicitly convert it to str
         call(['xdotool', 'type', '--clearmodifiers', '--delay', delay,
               str(value)])
@@ -930,7 +930,7 @@ def autotype(sequence, delay, menu):
     names = []
     matches = []
     for groupname, entryname in db:
-        name = '%s/%s' % (groupname, entryname)
+        name = f'{groupname}/{entryname}'
         names.append(name)
         keywords = [entryname.lower()] + db.keywords(name)
         title = window[1].lower()

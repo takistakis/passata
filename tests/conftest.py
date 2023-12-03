@@ -34,8 +34,8 @@ def db(tmpdir, monkeypatch):
     dbpath = tmpdir.join('passata.db')
 
     confpath.write(
-        'database: %s\n'
-        'gpg_id: mail@mail.com\n' % dbpath
+        f'database: {dbpath}\n'
+        'gpg_id: mail@mail.com\n'
     )
 
     dbpath.write(

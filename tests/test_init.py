@@ -66,18 +66,18 @@ def test_init_uninitialized(tmpdir, cryptopatch):
     # Initialize. It should not ask for confirmation.
     gpg_id = 'mail@mail.com'
     result = run([
-        '--config=%s' % str(confpath),
+        f'--config={confpath}',
         'init',
-        '--gpg-id=%s' % gpg_id,
-        '--path=%s' % dbpath,
+        f'--gpg-id={gpg_id}',
+        f'--path={dbpath}',
     ])
     assert result.exit_code == 0
     assert result.exception is None
     assert result.output == ''
     assert os.path.isfile(str(dbpath))
     contents = confpath.read()
-    assert 'database: %s' % dbpath in contents
-    assert 'gpg_id: %s' % gpg_id in contents
+    assert f'database: {dbpath}' in contents
+    assert f'gpg_id: {gpg_id}' in contents
 
     # Try to execute a command again and now it should work
     result = run(['--config', str(confpath), 'ls'])
@@ -90,7 +90,7 @@ def test_command_initialized_deleted_db(db):
     os.unlink(str(db))
     result = run(['ls'])
     assert isinstance(result.exception, SystemExit)
-    assert result.output == "Database file (%s) does not exist\n" % db
+    assert result.output == f"Database file ({db}) does not exist\n"
 
 
 def test_init_initialized_do_not_confirm(db):
@@ -100,19 +100,19 @@ def test_init_initialized_do_not_confirm(db):
 
     gpg_id = 'anothermail@mail.com'
     cmd = [
-        '--config=%s' % confpath,
+        f'--config={confpath}',
         'init',
-        '--gpg-id=%s' % gpg_id,
-        '--path=%s' % db,
+        f'--gpg-id={gpg_id}',
+        f'--path={db}',
     ]
     result = run(cmd, input='n\n')
     assert result.exit_code == 0
     assert result.exception is None
-    assert result.output == 'Overwrite %s? [y/N]: n\n' % confpath
+    assert result.output == f"Overwrite {confpath}? [y/N]: n\n"
     with open(confpath) as f:
         contents = f.read()
     assert 'gpg_id: mail@mail.com' in contents
-    assert 'gpg_id: %s' % gpg_id not in contents
+    assert f'gpg_id: {gpg_id}' not in contents
 
     assert_db_full()
 
@@ -124,22 +124,22 @@ def test_init_initialized_confirm_only_config(db):
 
     gpg_id = 'anothermail@mail.com'
     cmd = [
-        '--config=%s' % confpath,
+        f'--config={confpath}',
         'init',
-        '--gpg-id=%s' % gpg_id,
-        '--path=%s' % db,
+        f'--gpg-id={gpg_id}',
+        f'--path={db}',
     ]
     result = run(cmd, input='y\nn\n')
     assert result.exit_code == 0
     assert result.exception is None
     assert result.output == (
-        'Overwrite %s? [y/N]: y\n'
-        'Overwrite %s? [y/N]: n\n' % (confpath, db)
+        f'Overwrite {confpath}? [y/N]: y\n'
+        f'Overwrite {db}? [y/N]: n\n'
     )
     with open(confpath) as f:
         contents = f.read()
     assert 'gpg_id: mail@mail.com' not in contents
-    assert 'gpg_id: %s' % gpg_id in contents
+    assert f'gpg_id: {gpg_id}' in contents
 
     assert_db_full()
 
@@ -151,21 +151,21 @@ def test_init_initialized_confirm_all(db, monkeypatch):
 
     gpg_id = 'anothermail@mail.com'
     cmd = [
-        '--config=%s' % confpath,
+        f'--config={confpath}',
         'init',
-        '--gpg-id=%s' % gpg_id,
-        '--path=%s' % db,
+        f'--gpg-id={gpg_id}',
+        f'--path={db}',
     ]
     result = run(cmd, input='y\ny\n')
     assert result.exit_code == 0
     assert result.exception is None
     assert result.output == (
-        'Overwrite %s? [y/N]: y\n'
-        'Overwrite %s? [y/N]: y\n' % (confpath, db)
+        f'Overwrite {confpath}? [y/N]: y\n'
+        f'Overwrite {db}? [y/N]: y\n'
     )
     with open(confpath) as f:
         contents = f.read()
     assert 'gpg_id: mail@mail.com' not in contents
-    assert 'gpg_id: %s' % gpg_id in contents
+    assert f'gpg_id: {gpg_id}' in contents
 
     assert_db_empty()
