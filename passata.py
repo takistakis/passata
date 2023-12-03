@@ -570,9 +570,7 @@ def find(names, no_tree, show_):
 def show(name, clip, timeout):
     """Decrypt and print the contents of NAME.
 
-    NAME can be an entry, a group, or omitted to print the whole database. If
-    NAME is an entry and --clip is specified, the password will stay in the
-    clipboard until it is pasted.
+    NAME can be an entry, a group, or omitted to print the whole database.
     """
     db = DB()
     db.read()
