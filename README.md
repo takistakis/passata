@@ -1,8 +1,5 @@
 # passata
 
-[![build](https://travis-ci.org/forkbong/passata.svg?branch=master)](https://travis-ci.org/forkbong/passata)
-[![codecov](https://codecov.io/gh/forkbong/passata/branch/master/graph/badge.svg)](https://codecov.io/gh/forkbong/passata)
-
 A simple password manager, inspired by [pass].
 
 Supports a subset of pass's commands and options and unlike pass, all
