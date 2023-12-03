@@ -70,7 +70,7 @@ def test_lock(monkeypatch, db):
         # either, because we ignore any FileNotFoundError.
         passata.unlock_file(str(db))
     except Exception as e:
-        pytest.fail('unlock_file: %s' % e)
+        pytest.fail(f'unlock_file: {e}')
 
 
 def test_default_gpg_id(monkeypatch):
