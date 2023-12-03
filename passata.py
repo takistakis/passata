@@ -481,7 +481,9 @@ class DB:
 @click.group(context_settings={'help_option_names': ['-h', '--help'],
                                'max_content_width': 100})
 @click.option('--config', 'confpath', type=click.Path(dir_okay=False),
-              default=os.path.join(click.get_app_dir('passata'), 'config.yml'),
+              default=os.path.join(
+                  click.get_app_dir('passata', force_posix=True),
+                  'config.yml'),
               envvar='PASSATA_CONFIG_PATH',
               help="Path of the configuration file.")
 @click.option('--color/--no-color', default=None,
