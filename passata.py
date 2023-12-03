@@ -539,6 +539,15 @@ def init(obj, force, gpg_id, dbpath):
     db.write(gpg_id, force)
 
 
+@cli.command('config')
+@click.option('-e', '--editor', default=os.environ.get('EDITOR', 'vim'),
+              help="Which editor to use.")
+@click.pass_obj
+def config_(config, editor):
+    """Edit the configuration file."""
+    click.edit(filename=config['_confpath'], editor=editor)
+
+
 @cli.command()
 @click.option('-n', '--no-tree', is_flag=True,
               help="Print entries in 'groupname/entryname' format.")

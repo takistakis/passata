@@ -18,6 +18,7 @@ _passata() {
       local -a subcommands
       subcommands=(
         'init:Initialize password database'
+        'config:Edit the configuration file'
         'ls:List entries in a tree-like format'
         'find:List matching entries in a tree-like format'
         'show:Show entry, group or the whole database'
@@ -40,6 +41,13 @@ _passata() {
             '(-g --gpg-id)'{-g,--gpg-id}'[GnuPG ID for database encryption]:gpg key:_complete_keys' \
             '(-p --path)'{-p,--path}'[Database path]:file:_files' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
+          ;;
+
+        config)
+          _arguments -s : \
+            '(-e --editor)'{-e,--editor}'[Which editor to use]:string:' \
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
+          _complete_groups
           ;;
 
         ls)
