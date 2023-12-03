@@ -38,7 +38,7 @@ def test_find_multiple(db):
 
 
 def test_find_show(db):
-    result = run(['find', 'red', '--show'])
+    result = run(['find', 'red', '--print'])
     assert result.output == (
         'internet:\n'
         '  reddit:\n'
@@ -81,7 +81,7 @@ def test_find_show_in_keyword(db, editor):
     ))
     run(['edit', 'group/google'])
 
-    result = run(['find', 'mail', '--show'])
+    result = run(['find', 'mail', '--print'])
     assert result.output == (
         'group:\n'
         '  google (gmail):\n'

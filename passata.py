@@ -564,10 +564,10 @@ def ls(group, no_tree):
 @cli.command()
 @click.option('-n', '--no-tree', is_flag=True,
               help="Print entries in 'groupname/entryname' format.")
-@click.option('-s', '--show', 'show_', is_flag=True,
+@click.option('-p', '--print', 'print_', is_flag=True,
               help="Whether to show the found entries.")
 @click.argument('names', nargs=-1)
-def find(names, no_tree, show_):
+def find(names, no_tree, print_):
     """List matching entries in a tree-like format."""
     db = DB()
     db.read()
@@ -582,7 +582,7 @@ def find(names, no_tree, show_):
             if any(name in keyword for name in names):
                 matches.put('%s (%s)' % (name, keyword), db.get(name))
                 break
-    if show_:
+    if print_:
         echo(to_string(matches.db).strip())
     else:
         matches.list(no_tree=no_tree)
@@ -697,7 +697,7 @@ def generate_password(length, entropy, symbols, wordlist, force):
               default=20, help="Length of the generated password.")
 @click.option('-e', '--entropy', type=click.IntRange(1), metavar='INTEGER',
               help="Calculate length for given bits of entropy.")
-@click.option('--symbols/--no-symbols', default=True,
+@click.option('-s/-S', '--symbols/--no-symbols', default=True,
               help="Whether to use symbols in the generated password.")
 @click.option('-w', '--wordlist', type=click.Path(dir_okay=False),
               help="List of words for passphrase generation.")
