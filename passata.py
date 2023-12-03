@@ -62,7 +62,7 @@ def call(command, stdout=None, input=None):
             universal_newlines=True
         ).stdout
     except subprocess.CalledProcessError as e:
-        sys.exit(e)
+        sys.exit(str(e))
     except FileNotFoundError:
         sys.exit("Executable '%s' not found" % command[0])
 
@@ -111,7 +111,7 @@ def lock_file(path):
     lockpath = '%s.lock' % path
 
     # Open with 'a' (i.e. append) to prevent truncation
-    lock = open(lockpath, 'a')
+    lock = open(lockpath, 'a', encoding='utf-8')
     try:
         fcntl.lockf(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except IOError:
@@ -249,7 +249,7 @@ def to_string(data):
 def read_config(confpath):
     """Read the configuration file and return it as a dict."""
     try:
-        with open(confpath) as f:
+        with open(confpath, encoding='utf-8') as f:
             return to_dict(f.read())
     except FileNotFoundError:
         sys.exit("Run `passata init` first")
@@ -259,7 +259,7 @@ def write_config(confpath, config, force):
     """Write the configuration file."""
     confirm_overwrite(confpath, force)
     os.makedirs(os.path.dirname(confpath), exist_ok=True)
-    with open(confpath, 'w') as f:
+    with open(confpath, 'w', encoding='utf-8') as f:
         f.write(to_string(config))
 
 
@@ -283,6 +283,7 @@ class DB:
 
     def __init__(self, path=None):
         self.db = collections.OrderedDict()
+        self.data = None
         if path:
             self.path = path
 
@@ -321,19 +322,19 @@ class DB:
         assert self.path is not None
         confirm_overwrite(self.path, force)
         data = to_string(self.db)
-        if data == getattr(self, 'data', None):
+        if data == self.data:
             return
         encrypted = self.encrypt(data, gpg_id)
         # Write to a temporary file, make sure the data has reached the
         # disk and replace the database with the temporary file using
         # os.replace() which is guaranteed to be an atomic operation.
-        fd = tempfile.NamedTemporaryFile(
-            mode='w', dir=os.path.dirname(self.path), delete=False)
-        fd.write(encrypted)
-        fd.flush()
-        os.fsync(fd.fileno())
-        fd.close()
-        os.replace(fd.name, self.path)
+        with tempfile.NamedTemporaryFile(
+            mode='w', dir=os.path.dirname(self.path), delete=False
+        ) as temp:
+            temp.write(encrypted)
+            temp.flush()
+            os.fsync(temp.fileno())
+        os.replace(temp.name, self.path)
         self.data = data
         if not self.registered_post_write_hook:
             atexit.register(self.execute_post_write_hook)
@@ -423,7 +424,9 @@ class DB:
             groupname = group.rstrip('/')
             if groupname not in self.groups():
                 sys.exit("%s not found" % groupname)
-            for entryname in self.get(groupname):
+            group = self.get(groupname)
+            assert group is not None
+            for entryname in group:
                 lines.append(entryname)
         elif no_tree:
             for groupname, entryname in self:
@@ -431,7 +434,9 @@ class DB:
         else:
             for groupname in self.groups():
                 lines.append(click.style(groupname, fg='blue', bold=True))
-                entrynames = list(self.get(groupname))
+                group = self.get(groupname)
+                assert group is not None
+                entrynames = list(group)
                 for entryname in entrynames[:-1]:
                     lines.append("├── %s" % entryname)
                 lines.append("└── %s" % entrynames[-1])
@@ -445,7 +450,7 @@ class DB:
         keywords = entry.get('keywords')
         if isinstance(keywords, list):
             return [str(keyword).lower() for keyword in keywords]
-        elif keywords is not None:
+        if keywords is not None:
             return [str(keywords).lower()]
         return []
 
@@ -646,7 +651,7 @@ def generate_password(length, entropy, symbols, wordlist, force):
     choice = random.SystemRandom().choice
     if wordlist:
         try:
-            with open(wordlist) as f:
+            with open(wordlist, encoding='utf-8') as f:
                 pool = f.read().strip().split('\n')
         except FileNotFoundError:
             sys.exit("%s: No such file or directory" % wordlist)
@@ -662,7 +667,7 @@ def generate_password(length, entropy, symbols, wordlist, force):
         msg = "Generate password with only %.3f bits of entropy?" % entropy
         confirm(msg, force)
     sep = ' ' if wordlist else ''
-    password = sep.join(choice(pool) for i in range(length))
+    password = sep.join(choice(pool) for _ in range(length))
     click.echo("Generated password with %.3f bits of entropy" % entropy)
     return password
 
@@ -684,7 +689,7 @@ def generate_password(length, entropy, symbols, wordlist, force):
 @click.option('--symbols/--no-symbols', default=True,
               help="Whether to use symbols in the generated password.")
 @click.option('-w', '--wordlist', type=click.Path(dir_okay=False),
-              help=("List of words for passphrase generation."))
+              help="List of words for passphrase generation.")
 @click.pass_obj
 def generate(config, name, force, print_, clip, timeout, length, entropy,
              symbols, wordlist):
@@ -839,10 +844,15 @@ def mv(config, source, dest, force):
         for name in source:
             if db.get(name) is None:
                 sys.exit("%s not found" % name)
+            _, entryname = split(name)
+            assert entryname is not None
             # os.path.join() because using '/'.join('groupname/', 'entryname')
             # would result in two slashes.
-            newname = os.path.join(dest, split(name)[1]) \
-                if isgroup(dest) else dest
+            newname = (
+                os.path.join(dest, entryname)
+                if isgroup(dest)
+                else dest
+            )
             if db.get(newname) is not None:
                 confirm("Overwrite %s?" % newname, force)
             entry = db.pop(name, force=True)
@@ -875,10 +885,11 @@ def keyboard(key, entry, delay):
         call(['xdotool', 'key', key])
 
 
-def get_autotype(entry):
+def get_autotype_keys(entry):
     """Return a list with the items that need to be typed."""
-    data = entry.get('autotype')
-    if not data:
+    data: Optional[str] = entry.get('autotype')
+
+    if data is None:
         if entry.get('username') and entry.get('password'):
             data = '<username> Tab <password> Return'
         elif entry.get('password'):
@@ -886,13 +897,15 @@ def get_autotype(entry):
         else:
             die("Don't know what to type :(")
 
+    assert isinstance(data, str)
+
     return data.split()
 
 
 @cli.command()
 @click.option('-s', '--sequence', help="Autotype sequence.")
 @click.option('-d', '--delay', default='50',
-              help="Delay between keystrokes in milliseconds.")
+              help="Delay between keystrokes in ms.")
 @click.option('-m', '--menu', default=['dmenu'],
               help="dmenu provider command.")
 def autotype(sequence, delay, menu):
@@ -921,12 +934,12 @@ def autotype(sequence, delay, menu):
         choice = out(command, input=choices).strip()
 
     entry = db.get(choice)
-    autotype = sequence.split() if sequence else get_autotype(entry)
-    for key in autotype:
+    keys = sequence.split() if sequence else get_autotype_keys(entry)
+    for key in keys:
         if active_window() != window:  # pragma: no cover
             die("Window has changed")
         keyboard(key, entry, delay)
 
 
 if __name__ == '__main__':
-    cli()
+    cli()  # pylint: disable=no-value-for-parameter

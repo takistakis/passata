@@ -107,7 +107,7 @@ _passata() {
         autotype)
           _arguments -s : \
             '(-s --sequence)'{-s,--sequence}'[Autotype sequence]:string:' \
-            '(-d --delay)'{-d,--delay}'[Delay between keystrokes in milliseconds]:int:' \
+            '(-d --delay)'{-d,--delay}'[Delay between keystrokes in ms]:int:' \
             '(-m --menu)'{-m,--menu}'[dmenu provider command]:string:' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           ;;

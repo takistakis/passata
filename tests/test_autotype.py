@@ -28,21 +28,21 @@ if sys.platform == "darwin":
     pytest.skip("Skipping Linux-only tests", allow_module_level=True)
 
 
-def test_get_autotype(monkeypatch):
+def test_get_autotype_keys(monkeypatch):
     # <autotype> field in entry
     entry = {'username': 'takis', 'password': 'pass',
              'autotype': '<password> !5 Return'}
-    autotype = passata.get_autotype(entry)
+    autotype = passata.get_autotype_keys(entry)
     assert autotype == ['<password>', '!5', 'Return']
 
     # <username> and <password> fields in entry
     entry = {'username': 'takis', 'password': 'pass'}
-    autotype = passata.get_autotype(entry)
+    autotype = passata.get_autotype_keys(entry)
     assert autotype == ['<username>', 'Tab', '<password>', 'Return']
 
     # <password> field in entry
     entry = {'name': 'takis', 'password': 'pass'}
-    autotype = passata.get_autotype(entry)
+    autotype = passata.get_autotype_keys(entry)
     assert autotype == ['<password>', 'Return']
 
     # No known fields in entry
@@ -50,7 +50,7 @@ def test_get_autotype(monkeypatch):
     monkeypatch.setattr(passata, 'call', lambda command: None)
     entry = {'name': 'takis', 'pass': 'pass'}
     with pytest.raises(SystemExit):
-        passata.get_autotype(entry)
+        passata.get_autotype_keys(entry)
 
 
 def test_autotype(monkeypatch, db):

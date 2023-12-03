@@ -97,11 +97,12 @@ def test_generate_passphrase_file_not_found(tmpdir):
 
 @pytest.fixture
 def patch(monkeypatch):
+    def generate_password(length, *args, **kwargs):
+        return length * 'x'
+
     # NOTE: The following monkeypatch eats the "Generated
     # password with x bits of entropy" message.
-    monkeypatch.setattr(
-        passata, 'generate_password', lambda l, e, s, w, f: l * 'x'
-    )
+    monkeypatch.setattr(passata, 'generate_password', generate_password)
     monkeypatch.setattr(
         click, 'pause', lambda: print("Press any key to continue ...")
     )
