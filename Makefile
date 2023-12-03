@@ -10,4 +10,10 @@ uninstall:
 	rm -f $(PREFIX)/bin/passata
 	rm -f $(PREFIX)/share/zsh/site-functions/_passata
 
-.PHONY: install uninstall
+test:
+	flake8 passata.py tests/
+	isort passata.py tests/
+	coverage run -m pytest
+	coverage report
+
+.PHONY: install uninstall test
