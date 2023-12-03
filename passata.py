@@ -34,8 +34,10 @@ import tempfile
 import time
 
 import click
-import pyinotify
+import watchdog.events
+import watchdog.observers
 import yaml
+import yaml.scanner
 
 __version__ = '0.1.0'
 
@@ -115,8 +117,15 @@ def lock_file(path):
 
     atexit.register(unlock_file, path)
 
-    # Register the lock file's file descriptor to prevent it from closing
-    click.get_current_context().obj['_lock'] = lock
+    # Register the lock file's file descriptor to prevent it from closing.
+    # If there is no current context the caller is responsible to keep the lock
+    # alive as long as needed.
+    try:
+        click.get_current_context().obj['_lock'] = lock
+    except RuntimeError:
+        pass
+
+    return lock
 
 
 def unlock_file(path):
@@ -316,6 +325,7 @@ class DB:
         os.fsync(fd.fileno())
         fd.close()
         os.replace(fd.name, self.path)
+        self.data = data
 
     def get(self, name):
         """Return database, group or entry."""
@@ -676,30 +686,25 @@ def generate(config, name, force, print_, clip, timeout, length, entropy,
 @click.pass_obj
 def edit(config, name, editor):
     """Edit entry, group or the whole database."""
-    db = DB(config['database'])
-    db.read(lock=True)
-    subdict = db.get(name) or collections.OrderedDict()
-    original = to_string(subdict)
-    # Describe what is being edited in a comment at the top
-    comment = name or "passata database"
-    text = "# %s\n%s" % (comment, original)
 
-    fp = tempfile.NamedTemporaryFile(
-        mode='w+', prefix='passata-', suffix='.yml'
-    )
-    fp.write(text)
-    fp.flush()
+    class EventHandler(watchdog.events.PatternMatchingEventHandler):
+        """Write database when temp file is modified."""
 
-    class EventHandler(pyinotify.ProcessEvent):
-        """Custom pyinotify event handler."""
+        def __init__(self, path):
+            self.path = path
+            super().__init__(
+                patterns=["*.yml"],
+                ignore_directories=True,
+                case_sensitive=False,
+            )
 
-        @staticmethod
-        def process_IN_MODIFY(event):
-            """Update the database each time the temporary file is saved."""
-            if event.pathname != fp.name:
+        def on_modified(self, event):
+            if self.path not in event.src_path:
                 return
-            with open(fp.name) as f:
+
+            with open(event.src_path, encoding='utf-8') as f:
                 updated = f.read()
+
             # If the file is empty or contains invalid yaml,
             # ignore it. Once the editor exits, we will
             # read it one last time and handle it properly.
@@ -712,20 +717,39 @@ def edit(config, name, editor):
             db.put(name, data)
             db.write(config['gpg_id'])
 
-    manager = pyinotify.WatchManager()
-    notifier = pyinotify.ThreadedNotifier(manager, EventHandler())
-    notifier.start()
-    tmpdir = os.path.dirname(fp.name)
-    watch = manager.add_watch(tmpdir, pyinotify.IN_MODIFY)
-    click.edit(filename=fp.name, editor=editor)
-    manager.rm_watch(watch[tmpdir])
-    notifier.stop()
+    db = DB(config['database'])
+    db.read(lock=True)
+    subdict = db.get(name) or collections.OrderedDict()
+    original = to_string(subdict)
+    # Describe what is being edited in a comment at the top
+    comment = name or "passata database"
+    text = "# %s\n%s" % (comment, original)
+
+    temp = tempfile.NamedTemporaryFile(
+        mode='w+', prefix='passata-', suffix='.yml'
+    )
+    temp.write(text)
+    temp.flush()
+
+    path = os.path.dirname(temp.name)
+    event_handler = EventHandler(temp.name)
+    observer = watchdog.observers.Observer()
+    observer.schedule(event_handler, path=path, recursive=True)
+    observer.start()
+
+    click.edit(filename=temp.name, editor=editor)
+
+    observer.stop()
+    observer.join()
 
     # Read the file one last time. It may have already been read
     # in the handler, but it's not guaranteed. If for example the
     # user saved and exited the editor, there is a race condition.
-    fp.seek(0)
-    updated = fp.read()
+    with open(temp.name, encoding='utf-8') as f:
+        updated = f.read()
+
+    temp.close()
+
     try:
         data = to_dict(updated)
     except yaml.scanner.ScannerError:
@@ -733,7 +757,6 @@ def edit(config, name, editor):
     else:
         db.put(name, data)
         db.write(config['gpg_id'])
-    fp.close()
 
 
 @cli.command()

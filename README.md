@@ -15,12 +15,12 @@ active window's title.
 Requirements:
 
 - Python 3.6 or newer
-- Python libraries: click, PyYAML, pyinotify
+- Python libraries: click, PyYAML, watchdog
 - Software: gpg, xdotool, dmenu, libnotify, xsel
 
 For example for Arch Linux run:
 
-`# pacman -S python-click python-yaml python-pyinotify gnupg xdotool
+`# pacman -S python-click python-yaml python-watchdog gnupg xdotool
 dmenu libnotify xsel`
 
 Install passata itself using `setup.py`. Note that doing so might make
