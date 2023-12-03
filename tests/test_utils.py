@@ -17,11 +17,10 @@
 
 """Tests for passata utility functions."""
 
+import multiprocessing
 import textwrap
 import time
 
-import click
-import py
 import pytest
 
 import passata
@@ -38,31 +37,25 @@ def test_command_not_found():
         passata.call(['there_is_no_such_executable.exe'])
 
 
+def background_lock(db):
+    # Assign the lock to a variable to keep it in scope and prevent the file
+    # from closing.
+    lock = passata.lock_file(str(db))  # noqa
+    time.sleep(1)
+
+
 def test_lock(monkeypatch, db):
-
-    class FakeContext:
-        obj = {'database': str(db)}
-
-    ctx = FakeContext()
-    monkeypatch.setattr(click, 'get_current_context', lambda: ctx)
-
-    def background_lock():
-        passata.lock_file(str(db))
-        assert '_lock' in ctx.obj
-        time.sleep(1)
-
     # lockf locks are bound to processes, not file descriptors
     # so we have to use a forked process to properly test this.
-    ff = py.process.ForkedFunc(background_lock)
+    process = multiprocessing.Process(target=background_lock, args=(db,))
+    process.start()
     time.sleep(0.5)
 
     result = run(['rm', 'internet/github', '--force'])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Another passata process is editing the database\n"
 
-    result = ff.waitfinish()
-    assert result.exitstatus == 0
-    assert result.out == result.err == ''
+    result = process.join()
 
     result = run(['rm', 'internet/github', '--force'])
     assert result.output == ''

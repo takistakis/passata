@@ -144,39 +144,39 @@ def assert_password_in_output_and_clipboard(result):
 class TestGenerateNoName:
     """Test generate without argument and different print/clip combinations."""
 
-    def test_generate(self, patch):
+    def test_generate(self, patch, db):
         result = run(['generate'])
         assert_password_in_clipboard(result)
 
-    def test_generate_clip(self, patch):
+    def test_generate_clip(self, patch, db):
         result = run(['generate', '--clip'])
         assert_password_in_clipboard(result)
 
-    def test_generate_no_clip(self, patch):
+    def test_generate_no_clip(self, patch, db):
         result = run(['generate', '--no-clip'])
         assert_password_in_output(result)
 
-    def test_generate_print(self, patch):
+    def test_generate_print(self, patch, db):
         result = run(['generate', '--print'])
         assert_password_in_output_and_clipboard(result)
 
-    def test_generate_no_print(self, patch):
+    def test_generate_no_print(self, patch, db):
         result = run(['generate', '--no-print'])
         assert_password_in_clipboard(result)
 
-    def test_generate_print_clip(self, patch):
+    def test_generate_print_clip(self, patch, db):
         result = run(['generate', '--print', '--clip'])
         assert_password_in_output_and_clipboard(result)
 
-    def test_generate_print_no_clip(self, patch):
+    def test_generate_print_no_clip(self, patch, db):
         result = run(['generate', '--print', '--no-clip'])
         assert_password_in_output(result)
 
-    def test_generate_no_print_clip(self, patch):
+    def test_generate_no_print_clip(self, patch, db):
         result = run(['generate', '--no-print', '--clip'])
         assert_password_in_clipboard(result)
 
-    def test_generate_no_print_no_clip(self, patch):
+    def test_generate_no_print_no_clip(self, patch, db):
         result = run(['generate', '--no-print', '--no-clip'])
         assert_password_in_output(result)
 
