@@ -49,6 +49,7 @@ script.
 
     Commands:
       autotype  Type login credentials.
+      config    Edit the configuration file.
       edit      Edit entry, group or the whole database.
       find      List matching entries in a tree-like format.
       generate  Generate a random password.
