@@ -662,7 +662,7 @@ def generate_password(length, entropy, symbols, wordlist, force):
     choice = random.SystemRandom().choice
     if wordlist:
         try:
-            with open(wordlist, encoding='utf-8') as f:
+            with open(os.path.expanduser(wordlist), encoding='utf-8') as f:
                 pool = f.read().strip().split('\n')
         except FileNotFoundError:
             sys.exit(f"{wordlist}: No such file or directory")
