@@ -20,7 +20,6 @@
 """A simple password manager, inspired by pass."""
 
 import atexit
-import collections
 import fcntl
 import math
 import os
@@ -209,40 +208,27 @@ def split(name):
     return groupname, entryname
 
 
-def to_dict(data):
+def to_dict(data: str) -> dict:
     """Turn yaml string to dict."""
     # Return empty dict for empty string or None
     if not data:
-        return collections.OrderedDict()
+        return {}
 
-    class OrderedLoader(yaml.SafeLoader):
-        """yaml.Loader subclass that safely loads to OrderedDict."""
-
-    def _constructor(loader, node):
-        loader.flatten_mapping(node)
-        return collections.OrderedDict(loader.construct_pairs(node))
-
-    tag = yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
-    OrderedLoader.add_constructor(tag, _constructor)
-    return yaml.load(data, Loader=OrderedLoader)
+    return yaml.safe_load(data)
 
 
-def to_string(data):
+def to_string(data: dict) -> str:
     """Turn dict to yaml string."""
     # Return empty string for empty dict or None
     if not data:
         return ''
 
-    class OrderedDumper(yaml.SafeDumper):
-        """yaml.Dumper subclass that safely dumps from OrderedDict."""
-
-    def _representer(dumper, data):
-        tag = yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
-        return dumper.represent_mapping(tag, data.items())
-
-    OrderedDumper.add_representer(collections.OrderedDict, _representer)
-    return yaml.dump(data, Dumper=OrderedDumper,
-                     default_flow_style=False, allow_unicode=True)
+    return yaml.safe_dump(
+        data,
+        default_flow_style=False,
+        allow_unicode=True,
+        sort_keys=False,
+    )
 
 
 # Config
@@ -282,7 +268,7 @@ class DB:
     registered_post_write_hook: bool = False
 
     def __init__(self, path=None):
-        self.db = collections.OrderedDict()
+        self.db = {}
         self.data = None
         if path:
             self.path = path
@@ -381,7 +367,7 @@ class DB:
         # Put a single entry
         else:
             if groupname not in self.db:
-                self.db[groupname] = collections.OrderedDict()
+                self.db[groupname] = {}
             self.db[groupname][entryname] = subdict
             self.sort_group(groupname)
 
@@ -457,7 +443,7 @@ class DB:
     def sort_group(self, groupname):
         """Sort entries in the given group."""
         group = self.db[groupname]
-        self.db[groupname] = collections.OrderedDict(
+        self.db[groupname] = dict(
             sorted(group.items(), key=lambda t: t[0])
         )
 
@@ -502,7 +488,7 @@ def cli(ctx, confpath, color):
         cmd_config.update({
             key: value
             for key, value in config.items()
-            if not isinstance(value, collections.OrderedDict)
+            if not isinstance(value, dict)
             and key not in cmd_config
         })
         ctx.color = color if color is not None else config.get('color')
@@ -762,7 +748,7 @@ def edit(config, name, editor):
 
     db = DB()
     db.read(lock=True)
-    subdict = db.get(name) or collections.OrderedDict()
+    subdict = db.get(name) or {}
     original = to_string(subdict)
     # Describe what is being edited in a comment at the top
     comment = name or "passata database"
