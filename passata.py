@@ -484,8 +484,7 @@ class DB:
                   'config.yml'),
               envvar='PASSATA_CONFIG_PATH',
               help="Path of the configuration file.")
-@click.option('--color/--no-color', default=None,
-              help="Whether to colorize the output.")
+@click.option('--color/--no-color', default=None, help="Colorize the output.")
 @click.version_option(version=__version__)
 @click.pass_context
 def cli(ctx, config, color):
@@ -571,7 +570,7 @@ def ls(obj, group, no_tree):
 @click.option('-n', '--no-tree', is_flag=True,
               help="Print entries in 'groupname/entryname' format.")
 @click.option('-p', '--print', 'print_', is_flag=True,
-              help="Whether to show the found entries.")
+              help="Show the found entries.")
 @click.argument('names', nargs=-1)
 @click.pass_obj
 def find(obj, names, no_tree, print_):
@@ -616,7 +615,9 @@ def show(obj, name, clip, timeout):
         echo(to_string(entry).strip())
 
 
-def do_insert(obj, name, password, force):
+def do_insert(
+    obj: Dict[str, Any], name: str, password: str, force: bool
+) -> Optional[str]:
     """Insert `password` into `name` without deleting everything else.
 
     If `name` is already in the database, keep a backup of the old password.
@@ -656,28 +657,56 @@ def insert(obj, name, force, password):
     do_insert(obj, name, password, force)
 
 
-def generate_password(length, entropy, symbols, wordlist, force):
+def get_wordpath(wordpath: Optional[str]) -> str:
+    """Return the path of the diceware words file."""
+    if wordpath is not None:
+        return wordpath
+
+    filename = "eff_large_wordlist.txt"
+    directories = ["/usr/local/share/passata", "/usr/share/passata"]
+    for directory in directories:
+        wordpath = os.path.join(directory, filename)
+        if os.path.exists(wordpath):
+            return wordpath
+
+    sys.exit("--words option requires a wordpath")
+
+
+def generate_password(
+    length: Optional[int],
+    entropy: Optional[float],
+    symbols: bool,
+    words: bool,
+    wordpath: Optional[str],
+    force: bool,
+) -> str:
     """Generate a random password."""
     choice = random.SystemRandom().choice
     pool: Sequence
-    if wordlist:
+    if words:
+        wordpath = get_wordpath(wordpath)
         try:
-            with open(os.path.expanduser(wordlist), encoding='utf-8') as f:
+            with open(os.path.expanduser(wordpath), encoding='utf-8') as f:
                 pool = f.read().strip().split('\n')
         except FileNotFoundError:
-            sys.exit(f"{wordlist}: No such file or directory")
+            sys.exit(f"{wordpath}: No such file or directory")
     else:
         chargroups = [string.ascii_letters, string.digits]
         if symbols:
             chargroups.append(string.punctuation)
         pool = ''.join(chargroups)
+
     if entropy is not None:
         length = math.ceil(entropy / math.log2(len(pool)))
-    entropy = length * math.log2(len(pool))
+    else:
+        assert length is not None
+        entropy = length * math.log2(len(pool))
+
     if entropy < 32:
         msg = f"Generate password with only {entropy:.3f} bits of entropy?"
         confirm(msg, force)
-    sep = ' ' if wordlist else ''
+
+    sep = ' ' if words else ''
     password = sep.join(choice(pool) for _ in range(length))
     click.echo(f"Generated password with {entropy:.3f} bits of entropy")
     return password
@@ -688,38 +717,50 @@ def generate_password(length, entropy, symbols, wordlist, force):
 @click.option('-f', '--force', is_flag=True,
               help="Do not prompt for confirmation.")
 @click.option('-p/-P', '--print/--no-print', 'print_',
-              help="Whether to print the password.")
+              help="Print the password.")
 @click.option('-c/-C', '--clip/--no-clip', default=True,
-              help="Whether to copy password to clipboard.")
+              help="Copy password to clipboard.")
 @click.option('-t', '--timeout', default=45,
               help="Number of seconds until the clipboard is cleared.")
 @click.option('-l', '--length', type=click.IntRange(1), metavar='INTEGER',
               default=20, help="Length of the generated password.")
-@click.option('-e', '--entropy', type=click.IntRange(1), metavar='INTEGER',
-              help="Calculate length for given bits of entropy.")
+@click.option('-e', '--entropy', type=click.FLOAT,
+              help="Calculate length for given bits of entropy "
+              "(takes precedence over --length).")
 @click.option('-s/-S', '--symbols/--no-symbols', default=True,
-              help="Whether to use symbols in the generated password.")
-@click.option('-w', '--wordlist', type=click.Path(dir_okay=False),
+              help="Use symbols in the generated password.")
+@click.option('-w/-W', '--words/--no-words', is_flag=True,
+              help="Generate diceware-like passphrase.")
+@click.option('--wordpath', type=click.Path(dir_okay=False),
               help="List of words for passphrase generation.")
 @click.pass_obj
-def generate(obj, name, force, print_, clip, timeout, length, entropy,
-             symbols, wordlist):
+def generate(obj: Dict[str, Any], name: Optional[str], force: bool,
+             print_: bool, clip: bool, timeout: int, length: int, entropy: int,
+             symbols: bool, words: bool, wordpath: str):
     """Generate a random password.
 
     When overwriting an existing entry, the old password is kept in
     <old_password>.
     """
-    password = generate_password(length, entropy, symbols, wordlist, force)
+    password = generate_password(
+        length, entropy, symbols, words, wordpath, force
+    )
+
     if print_ or (not name and not clip):
         click.echo(password)
+
     old_password = do_insert(obj, name, password, force) if name else None
-    if clip:
-        if old_password is not None:
-            to_clipboard(old_password, timeout=0)
-            click.echo("Copied old password to clipboard.")
-            click.pause()
-        to_clipboard(password, timeout=timeout)
-        click.echo("Copied generated password to clipboard.")
+
+    if not clip:
+        return
+
+    if old_password is not None:
+        to_clipboard(old_password, timeout=0)
+        click.echo("Copied old password to clipboard.")
+        click.pause()
+
+    to_clipboard(password, timeout=timeout)
+    click.echo("Copied generated password to clipboard.")
 
 
 @cli.command()
