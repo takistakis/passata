@@ -733,15 +733,37 @@ def generate_password(
               help="Generate diceware-like passphrase.")
 @click.option('--wordpath', type=click.Path(dir_okay=False),
               help="List of words for passphrase generation.")
-@click.pass_obj
-def generate(obj: Dict[str, Any], name: Optional[str], force: bool,
-             print_: bool, clip: bool, timeout: int, length: int, entropy: int,
-             symbols: bool, words: bool, wordpath: str):
+@click.pass_context
+def generate(
+    ctx: click.Context,
+    name: Optional[str],
+    force: bool,
+    print_: bool,
+    clip: bool,
+    timeout: int,
+    length: Optional[int],
+    entropy: Optional[float],
+    symbols: bool,
+    words: bool,
+    wordpath: str,
+):
     """Generate a random password.
 
     When overwriting an existing entry, the old password is kept in
     <old_password>.
     """
+    obj: Dict[str, Any] = ctx.obj
+
+    # Entropy takes precedence over length but cli params take precedence over
+    # config.
+    # TODO: Add test
+    entropy_source = ctx.get_parameter_source('entropy')
+    length_source = ctx.get_parameter_source('length')
+    if entropy_source is not None and length_source is not None:
+        if (entropy_source.name == 'DEFAULT_MAP' and
+                length_source.name == 'COMMANDLINE'):
+            entropy = None
+
     password = generate_password(
         length, entropy, symbols, words, wordpath, force
     )
