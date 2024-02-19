@@ -60,7 +60,7 @@ _passata() {
         find)
           _arguments -s : \
             '(-n --no-tree)'{-n,--no-tree}'[Print entries in <group>/<name> format]' \
-            '(-p --print)'{-p,--print}'[Whether to show the found entries]' \
+            '(-p --print)'{-p,--print}'[Show the found entries]' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           ;;
 
@@ -91,9 +91,11 @@ _passata() {
             '(-t --timeout)'{-t,--timeout}'[Number of seconds until the clipboard is cleared]:int:' \
             '(-l --length -e --entropy)'{-l,--length}'[Length of the generated password]:int:' \
             '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given bits of entropy]:int:' \
-            '(-s --symbols -S --no-symbols -w --wordlist)'{-s,--symbols}'[Use symbols in the generated password]' \
-            '(-s --symbols -S --no-symbols -w --wordlist)'{-S,--no-symbols}'[Do not use symbols in the generated password]' \
-            '(-w --wordlist -s --symbols -S --no-symbols)'{-w,--wordlist}'[List of words for passphrase generation]:file:_files' \
+            '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-s,--symbols}'[Use symbols in the generated password]' \
+            '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-S,--no-symbols}'[Do not use symbols in the generated password]' \
+            '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-w,--words}'[Generate diceware-like passphrase]' \
+            '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-W,--no-words}'[Do not generate diceware-like passphrase]' \
+            '(-w --wordpath -s --symbols -S --no-symbols)'{-w,--wordpath}'[List of words for passphrase generation]:file:_files' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;
