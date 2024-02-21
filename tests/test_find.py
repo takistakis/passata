@@ -17,7 +17,7 @@
 
 """Tests for passata find."""
 
-from tests.helpers import run
+from tests.helpers import clipboard, run
 
 
 def test_find(db):
@@ -35,6 +35,18 @@ def test_find_multiple(db):
         '├── github\n'
         '└── reddit\n'
     )
+
+
+def test_find_multiple_clip(db):
+    result = run(['find', 'red', 'git', '--clip'])
+    assert result.output == (
+        'internet\n'
+        '├── github\n'
+        '└── reddit\n'
+        '\n'
+        'Copied password of internet/github to clipboard.\n'
+    )
+    assert clipboard() == 'gh'
 
 
 def test_find_show(db):
