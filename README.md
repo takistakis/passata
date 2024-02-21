@@ -11,7 +11,7 @@ active window's title.
 
 Requirements:
 
-- Python 3.6 or newer
+- Python 3.9 or newer
 - Python libraries: click, PyYAML, watchdog
 - Software: gpg, xdotool, dmenu, libnotify, xsel
 
