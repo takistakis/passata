@@ -571,9 +571,11 @@ def ls(obj, group, no_tree):
               help="Print entries in 'groupname/entryname' format.")
 @click.option('-p', '--print', 'print_', is_flag=True,
               help="Show the found entries.")
+@click.option('-c/-C', '--clip/--no-clip', default=False,
+              help="Copy the first result's password to clipboard.")
 @click.argument('names', nargs=-1)
 @click.pass_obj
-def find(obj, names, no_tree, print_):
+def find(obj, names, no_tree, print_, clip):
     """List matching entries in a tree-like format."""
     db: DB = obj['_db']
     db.read()
@@ -583,6 +585,14 @@ def find(obj, names, no_tree, print_):
         echo(to_string(matches.db).strip())
     else:
         matches.ls(no_tree=no_tree)
+
+    if matches.db and clip:
+        groupname, entryname = next(iter(matches))
+        first_match = matches.get(f'{groupname}/{entryname}')
+        assert first_match is not None
+        to_clipboard(first_match['password'], timeout=0)
+        click.echo()
+        click.echo(f"Copied password of {groupname}/{entryname} to clipboard.")
 
 
 @cli.command(short_help="Show entry, group or the whole database.")

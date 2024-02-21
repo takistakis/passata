@@ -61,6 +61,8 @@ _passata() {
           _arguments -s : \
             '(-n --no-tree)'{-n,--no-tree}'[Print entries in <group>/<name> format]' \
             '(-p --print)'{-p,--print}'[Show the found entries]' \
+            '(-c --clip -C --no-clip)'{-c,--clip}'[Copy password to clipboard]' \
+            '(-c --clip -C --no-clip)'{-C,--no-clip}'[Print password]' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           ;;
 
