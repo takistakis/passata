@@ -34,7 +34,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 import click
 import watchdog.events
@@ -46,7 +46,11 @@ __version__ = '0.1.0'
 
 
 # Utilities
-def call(command, stdout=None, input=None):
+def call(
+    command: Union[Path, List[str]],
+    stdout: Optional[int] = None,
+    input: Optional[str] = None,
+) -> str:
     """Run command, optionally passing `input` to stdin.
 
     By default, standard output is printed and ignored and None is returned.
@@ -65,10 +69,11 @@ def call(command, stdout=None, input=None):
     except subprocess.CalledProcessError as e:
         sys.exit(str(e))
     except FileNotFoundError:
-        sys.exit(f"Executable '{command[0]}' not found")
+        path = command[0] if isinstance(command, list) else command
+        sys.exit(f"Executable '{path}' not found")
 
 
-def out(command, input=None):
+def out(command: List[str], input: Optional[str] = None) -> str:
     """Run command, optionally passing `input` to stdin, and return output.
 
     The output usually comes back with a trailing newline and it needs to be
@@ -77,7 +82,7 @@ def out(command, input=None):
     return call(command, stdout=subprocess.PIPE, input=input)
 
 
-def echo(data):
+def echo(data: str) -> None:
     """Print data to stdout or via a pager if it doesn't fit on screen."""
     # Bright blue key (color 12) and bright yellow colon (color 11).
     # Colors are applied manually using ANSI escape codes because
@@ -91,14 +96,14 @@ def echo(data):
     click.echo_via_pager(data)
 
 
-def die(message):
+def die(message: str) -> None:
     """Send a notification with the given message and exit."""
     icon = 'dialog-warning'
     call(['notify-send', '-i', icon, 'passata', message])
     sys.exit(1)
 
 
-def lock_file(path):
+def lock_file(path: str) -> Any:
     """Open and lock a temporary file associated with `path`.
 
     The file will be deleted when the program exits.
@@ -131,7 +136,7 @@ def lock_file(path):
     return lock
 
 
-def unlock_file(path):
+def unlock_file(path: str) -> None:
     """Remove the lock file, which also releases the lock."""
     lockpath = f'{path}.lock'
     try:
@@ -140,7 +145,7 @@ def unlock_file(path):
         pass
 
 
-def to_clipboard(data, timeout):
+def to_clipboard(data: str, timeout: int) -> None:
     """Put `data` to clipboard until `timeout` seconds pass."""
     command = (
         ['pbcopy', 'w']
@@ -150,13 +155,13 @@ def to_clipboard(data, timeout):
     call(command, input=data)
 
 
-def confirm(message, force):
+def confirm(message: str, force: bool) -> None:
     """Exit if the user does not agree."""
     if not force and not click.confirm(message):
         sys.exit(0)
 
 
-def confirm_overwrite(filename, force):
+def confirm_overwrite(filename: Union[str, Path], force: bool) -> None:
     """Exit if the file exists and the user wants it."""
     if os.path.isfile(filename):
         confirm(f"Overwrite {filename}?", force)
@@ -206,7 +211,7 @@ def to_string(data: Optional[Dict]) -> str:
 
 
 # Config
-def read_config(confpath: Path) -> Dict:
+def read_config(confpath: Path) -> Dict[str, Any]:
     """Read the configuration file and return it as a dict."""
     try:
         return to_dict(confpath.read_text())
@@ -214,7 +219,7 @@ def read_config(confpath: Path) -> Dict:
         sys.exit("Run `passata init` first")
 
 
-def write_config(confpath: Path, config: Dict, force: bool) -> None:
+def write_config(confpath: Path, config: Dict[str, Any], force: bool) -> None:
     """Write the configuration file."""
     confirm_overwrite(confpath, force)
     confpath.parent.mkdir(parents=True, exist_ok=True)
@@ -234,7 +239,12 @@ def default_gpg_id() -> str:
 class DB:
     """A passata database."""
 
-    def __init__(self, path, pre_read_hook=None, post_write_hook=None):
+    def __init__(
+        self,
+        path: Optional[str],
+        pre_read_hook: Optional[Path] = None,
+        post_write_hook: Optional[Path] = None,
+    ):
         self.db: Dict = {}
         self.data: Optional[str] = None
         self.path: Optional[str] = path
@@ -242,22 +252,22 @@ class DB:
         self.post_write_hook: Optional[Path] = post_write_hook
         self.registered_post_write_hook: bool = False
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Tuple[str, str]]:
         for groupname in self.db:
             for entryname in self.db[groupname]:
                 yield groupname, entryname
 
-    def groups(self):
+    def groups(self) -> Iterator[str]:
         """Iterate in group names."""
         for groupname in self.db:
             yield groupname
 
     @staticmethod
-    def decrypt(path):  # pragma: no cover
+    def decrypt(path: str) -> str:  # pragma: no cover
         """Decrypt the contents of the given file using gpg."""
         return out(['gpg', '-d', path])
 
-    def read(self, lock=False):
+    def read(self, lock: bool = False) -> None:
         """Return the database as a plaintext string."""
         self.execute_pre_read_hook()
         assert self.path is not None
@@ -269,11 +279,11 @@ class DB:
         self.db = to_dict(self.data)
 
     @staticmethod
-    def encrypt(data, gpg_id):  # pragma: no cover
+    def encrypt(data: str, gpg_id: str) -> str:  # pragma: no cover
         """Encrypt given text using gpg."""
         return out(['gpg', '-ear', gpg_id], input=data)
 
-    def write(self, gpg_id, force=True):
+    def write(self, gpg_id: str, force: bool = True) -> None:
         """Write the database as an encrypted string."""
         assert self.path is not None
         confirm_overwrite(self.path, force)
@@ -296,7 +306,7 @@ class DB:
             atexit.register(self.execute_post_write_hook)
             self.registered_post_write_hook = True
 
-    def get(self, name):
+    def get(self, name: str) -> Optional[Dict[str, Any]]:
         """Return database, group or entry."""
         groupname, entryname = split(name)
 
@@ -315,7 +325,7 @@ class DB:
         # Get a single entry
         return self.db[groupname].get(entryname)
 
-    def put(self, name, subdict):
+    def put(self, name: str, subdict: Optional[Dict]) -> None:
         """Add or replace subdict creating group if needed."""
         # Remove if given empty dict
         if not subdict:
@@ -341,7 +351,7 @@ class DB:
             self.db[groupname][entryname] = subdict
             self.sort_group(groupname)
 
-    def pop(self, name, force=False):
+    def pop(self, name: str, force: bool = False) -> Optional[Dict]:
         """Remove subdict and every empty parent and return it."""
         groupname, entryname = split(name)
 
@@ -373,11 +383,15 @@ class DB:
             del self.db[groupname]
         return entry
 
-    def list(self, group=None, no_tree=False):
+    def list(
+        self,
+        groupname: Optional[str] = None,
+        no_tree: bool = False,
+    ) -> None:
         """List entries in a tree-like format."""
         lines = []
-        if group:
-            groupname = group.rstrip('/')
+        if groupname:
+            groupname = groupname.rstrip('/')
             if groupname not in self.groups():
                 sys.exit(f"{groupname} not found")
             group = self.get(groupname)
@@ -414,7 +428,7 @@ class DB:
 
         return matches
 
-    def keywords(self, name):
+    def keywords(self, name: str) -> List[str]:
         """Return the entry's keywords field as a list of strings."""
         entry = self.get(name)
         assert entry is not None
@@ -425,24 +439,24 @@ class DB:
             return [str(keywords).lower()]
         return []
 
-    def sort_group(self, groupname):
+    def sort_group(self, groupname: str) -> None:
         """Sort entries in the given group."""
         group = self.db[groupname]
         self.db[groupname] = dict(
             sorted(group.items(), key=lambda t: t[0])
         )
 
-    def sort(self):
+    def sort(self) -> None:
         """Sort entries in each group of the database."""
         for groupname in self.db:
             self.sort_group(groupname)
 
-    def execute_pre_read_hook(self):
+    def execute_pre_read_hook(self) -> None:
         """Execute pre-read hook if existing."""
         if self.pre_read_hook is not None:
             call(self.pre_read_hook)
 
-    def execute_post_write_hook(self):
+    def execute_post_write_hook(self) -> None:
         """Execute post-write hook if existing."""
         if self.post_write_hook is not None:
             call(self.post_write_hook)
@@ -460,23 +474,27 @@ class DB:
 @click.option('--color/--no-color', default=None, help="Colorize the output.")
 @click.version_option(version=__version__)
 @click.pass_context
-def cli(ctx, config, color):
+def cli(ctx: click.Context, config: str, color: Optional[bool]) -> None:
     """A simple password manager, inspired by pass."""
     confpath = Path(config).expanduser()
     obj: Dict[str, Any] = {'_confpath': confpath}
     ctx.obj = obj
     command = ctx.invoked_subcommand
+    assert command is not None
     # When init is invoked there isn't supposed to be a config file yet
     if command != 'init':
-        config = read_config(confpath)
-        cmd_config = config.get(command, {})
+        config_data = read_config(confpath)
+        cmd_config: Dict[str, Any] = config_data.get(command, {})
+        if not isinstance(cmd_config, dict):
+            sys.exit(f"Invalid configuration for command {command}")
+
         cmd_config.update({
             key: value
-            for key, value in config.items()
+            for key, value in config_data.items()
             if not isinstance(value, dict)
             and key not in cmd_config
         })
-        ctx.color = color if color is not None else config.get('color')
+        ctx.color = color if color is not None else config_data.get('color')
         confdir = confpath.parent
 
         path = confdir / 'hooks' / 'pre-read'
@@ -484,15 +502,19 @@ def cli(ctx, config, color):
         path = confdir / 'hooks' / 'post-write'
         post_write_hook = path if path.is_file() else None
 
+        dbpath = config_data['database']
+        if not isinstance(dbpath, str):
+            sys.exit(f"Value for database ({dbpath}) is not a valid string")
+
         db = DB(
-            path=os.path.expanduser(config['database']),
+            path=os.path.expanduser(dbpath),
             pre_read_hook=pre_read_hook,
             post_write_hook=post_write_hook,
         )
 
         # We put the config in obj for the options that
         # don't correspond to a command-line option.
-        ctx.obj.update(config)
+        ctx.obj.update(config_data)
         ctx.obj['_db'] = db
         ctx.default_map = {command: cmd_config}
 
@@ -506,7 +528,7 @@ def cli(ctx, config, color):
               default='~/.passata.gpg', type=click.Path(dir_okay=False),
               help="Database path.")
 @click.pass_obj
-def init(obj, force, gpg_id, path):
+def init(obj: Dict[str, Any], force: bool, gpg_id: str, path: str) -> None:
     """Initialize password database."""
     dbpath = os.path.abspath(os.path.expanduser(path))
     lock_file(dbpath)
@@ -522,7 +544,7 @@ def init(obj, force, gpg_id, path):
 @click.option('-e', '--editor', default=os.environ.get('EDITOR', 'vim'),
               help="Which editor to use.")
 @click.pass_obj
-def config_(obj, editor):
+def config_(obj: Dict[str, Any], editor: str) -> None:
     """Edit the configuration file."""
     click.edit(filename=obj['_confpath'], editor=editor)
 
@@ -532,7 +554,7 @@ def config_(obj, editor):
               help="Print entries in 'groupname/entryname' format.")
 @click.argument('group', required=False)
 @click.pass_obj
-def ls(obj, group, no_tree):
+def ls(obj: Dict[str, Any], group: Optional[str], no_tree: bool) -> None:
     """List entries in a tree-like format."""
     db: DB = obj['_db']
     db.read()
@@ -548,7 +570,13 @@ def ls(obj, group, no_tree):
               help="Copy the first result's password to clipboard.")
 @click.argument('names', nargs=-1)
 @click.pass_obj
-def find(obj, names, no_tree, print_, clip):
+def find(
+    obj: Dict[str, Any],
+    names: List[str],
+    no_tree: bool,
+    print_: bool,
+    clip: bool,
+) -> None:
     """List matching entries in a tree-like format."""
     db: DB = obj['_db']
     db.read()
@@ -575,7 +603,7 @@ def find(obj, names, no_tree, print_, clip):
               help="Number of seconds until the clipboard is cleared.")
 @click.argument('name', required=False)
 @click.pass_obj
-def show(obj, name, clip, timeout):
+def show(obj: Dict[str, Any], name: str, clip: bool, timeout: int) -> None:
     """Decrypt and print the contents of NAME.
 
     NAME can be an entry, a group, or omitted to print the whole database.
@@ -629,7 +657,7 @@ def do_insert(
               help="Do not prompt for confirmation.")
 @click.password_option(help="Give password instead of being prompted for it.")
 @click.pass_obj
-def insert(obj, name, force, password):
+def insert(obj: Dict[str, Any], name: str, force: bool, password: str) -> None:
     """Insert a new password.
 
     When overwriting an existing entry, the old password is kept in
@@ -724,7 +752,7 @@ def generate(
     symbols: bool,
     words: bool,
     wordpath: str,
-):
+) -> None:
     """Generate a random password.
 
     When overwriting an existing entry, the old password is kept in
@@ -768,13 +796,13 @@ def generate(
 @click.option('-e', '--editor', default=os.environ.get('EDITOR', 'vim'),
               help="Which editor to use.")
 @click.pass_obj
-def edit(obj, name, editor):
+def edit(obj: Dict[str, Any], name: str, editor: str) -> None:
     """Edit entry, group or the whole database."""
 
     class EventHandler(watchdog.events.PatternMatchingEventHandler):
         """Write database when temp file is modified."""
 
-        def __init__(self, path):
+        def __init__(self, path: str) -> None:
             self.path = path
             watchdog.events.PatternMatchingEventHandler.__init__(
                 self,
@@ -783,7 +811,7 @@ def edit(obj, name, editor):
                 case_sensitive=False,
             )
 
-        def on_modified(self, event):
+        def on_modified(self, event: watchdog.events.FileSystemEvent) -> None:
             if self.path not in event.src_path:
                 return
 
@@ -849,7 +877,7 @@ def edit(obj, name, editor):
 @click.option('-f', '--force', is_flag=True,
               help="Do not prompt for confirmation.")
 @click.pass_obj
-def rm(obj, names, force):
+def rm(obj: Dict[str, Any], names: List[str], force: bool) -> None:
     """Remove entries or groups."""
     db: DB = obj['_db']
     db.read(lock=True)
@@ -874,7 +902,7 @@ def rm(obj, names, force):
 @click.option('-f', '--force', is_flag=True,
               help="Do not prompt for confirmation.")
 @click.pass_obj
-def mv(obj, source, dest, force):
+def mv(obj: Dict[str, Any], source: str, dest: str, force: bool) -> None:
     """Rename SOURCE to DEST or move SOURCE(s) to GROUP."""
     db: DB = obj['_db']
     db.read(lock=True)
@@ -915,14 +943,14 @@ def mv(obj, source, dest, force):
 
 
 # Autotype
-def active_window():  # pragma: no cover
+def active_window() -> Tuple[str, str]:  # pragma: no cover
     """Get active window id and name."""
     window_id = out(['xdotool', 'getactivewindow'])
     window_name = out(['xdotool', 'getwindowname', window_id])
     return window_id, window_name
 
 
-def keyboard(key, entry, delay):
+def keyboard(key: str, entry: Dict[str, Any], delay: str) -> None:
     """Simulate keyboard input for `key` using xdotool."""
     if key[0] == '<' and key[-1] == '>':
         value = entry.get(key[1:-1])
@@ -938,7 +966,7 @@ def keyboard(key, entry, delay):
         call(['xdotool', 'key', key])
 
 
-def get_autotype_keys(entry):
+def get_autotype_keys(entry: Dict[str, Any]) -> List[str]:
     """Return a list with the items that need to be typed."""
     data: Optional[str] = entry.get('autotype')
 
@@ -959,10 +987,14 @@ def get_autotype_keys(entry):
 @click.option('-s', '--sequence', help="Autotype sequence.")
 @click.option('-d', '--delay', default='50',
               help="Delay between keystrokes in ms.")
-@click.option('-m', '--menu', default=['dmenu'],
-              help="dmenu provider command.")
+@click.option('-m', '--menu', default='dmenu', help="dmenu provider command.")
 @click.pass_obj
-def autotype(obj, sequence, delay, menu):
+def autotype(
+    obj: Dict[str, Any],
+    sequence: str,
+    delay: str,
+    menu: str,
+) -> None:
     """Type login credentials."""
     db: DB = obj['_db']
     db.read()
@@ -988,6 +1020,7 @@ def autotype(obj, sequence, delay, menu):
         choice = out(command, input=choices).strip()
 
     entry = db.get(choice)
+    assert entry is not None
     keys = sequence.split() if sequence else get_autotype_keys(entry)
     for key in keys:
         if active_window() != window:  # pragma: no cover
