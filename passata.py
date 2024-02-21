@@ -19,11 +19,12 @@
 
 """A simple password manager, inspired by pass."""
 
+from __future__ import annotations
+
 import atexit
 import fcntl
 import math
 import os
-import pathlib
 import random
 import re
 import shlex
@@ -32,7 +33,8 @@ import subprocess
 import sys
 import tempfile
 import time
-from typing import Optional
+from pathlib import Path
+from typing import Any, Sequence
 
 import click
 import watchdog.events
@@ -188,12 +190,12 @@ def confirm_overwrite(filename, force):
         confirm(f"Overwrite {filename}?", force)
 
 
-def isgroup(name):
+def isgroup(name: str) -> bool:
     """Return whether `name` is in 'groupname' or 'groupname/' format."""
     return '/' not in name or not name.split('/')[1]
 
 
-def split(name):
+def split(name: str | None) -> tuple[str | None, str | None]:
     """Split `name` to group name and entry name."""
     if not name:
         groupname, entryname = None, None
@@ -208,7 +210,7 @@ def split(name):
     return groupname, entryname
 
 
-def to_dict(data: str) -> dict:
+def to_dict(data: str | None) -> dict:
     """Turn yaml string to dict."""
     # Return empty dict for empty string or None
     if not data:
@@ -217,7 +219,7 @@ def to_dict(data: str) -> dict:
     return yaml.safe_load(data)
 
 
-def to_string(data: dict) -> str:
+def to_string(data: dict | None) -> str:
     """Turn dict to yaml string."""
     # Return empty string for empty dict or None
     if not data:
@@ -232,24 +234,22 @@ def to_string(data: dict) -> str:
 
 
 # Config
-def read_config(confpath):
+def read_config(confpath: Path) -> dict:
     """Read the configuration file and return it as a dict."""
     try:
-        with open(confpath, encoding='utf-8') as f:
-            return to_dict(f.read())
+        return to_dict(confpath.read_text())
     except FileNotFoundError:
         sys.exit("Run `passata init` first")
 
 
-def write_config(confpath, config, force):
+def write_config(confpath: Path, config: dict, force: bool) -> None:
     """Write the configuration file."""
     confirm_overwrite(confpath, force)
-    os.makedirs(os.path.dirname(confpath), exist_ok=True)
-    with open(confpath, 'w', encoding='utf-8') as f:
-        f.write(to_string(config))
+    confpath.parent.mkdir(parents=True, exist_ok=True)
+    confpath.write_text(to_string(config))
 
 
-def default_gpg_id():
+def default_gpg_id() -> str:
     """Return the id of the first gpg secret key."""
     command = ['gpg', '--list-secret-keys']
     gpg_ids = re.search(r'<(.*)>', out(command))
@@ -262,16 +262,13 @@ def default_gpg_id():
 class DB:
     """A passata database."""
 
-    path = None
-    pre_read_hook: Optional[pathlib.Path] = None
-    post_write_hook: Optional[pathlib.Path] = None
-    registered_post_write_hook: bool = False
-
-    def __init__(self, path=None):
-        self.db = {}
-        self.data = None
-        if path:
-            self.path = path
+    def __init__(self, path, pre_read_hook=None, post_write_hook=None):
+        self.db: dict = {}
+        self.data: str | None = None
+        self.path: str | None = path
+        self.pre_read_hook: Path | None = pre_read_hook
+        self.post_write_hook: Path | None = post_write_hook
+        self.registered_post_write_hook: bool = False
 
     def __iter__(self):
         for groupname in self.db:
@@ -403,7 +400,7 @@ class DB:
             del self.db[groupname]
         return entry
 
-    def list(self, group=None, no_tree=False):
+    def ls(self, group=None, no_tree=False):
         """List entries in a tree-like format."""
         lines = []
         if group:
@@ -428,6 +425,21 @@ class DB:
                 lines.append(f"└── {entrynames[-1]}")
         if lines:
             echo('\n'.join(lines))
+
+    def find(self, names: Sequence[str]) -> DB:
+        names = [name.lower() for name in names]
+        matches = DB(path=None)
+        for groupname, entryname in self:
+            name = f'{groupname}/{entryname}'
+            if any(name in entryname.lower() for name in names):
+                matches.put(name, self.get(name))
+                continue
+            for keyword in self.keywords(name):
+                if any(name in keyword for name in names):
+                    matches.put(f'{name} ({keyword})', self.get(name))
+                    break
+
+        return matches
 
     def keywords(self, name):
         """Return the entry's keywords field as a list of strings."""
@@ -466,7 +478,7 @@ class DB:
 # Commands
 @click.group(context_settings={'help_option_names': ['-h', '--help'],
                                'max_content_width': 100})
-@click.option('--config', 'confpath', type=click.Path(dir_okay=False),
+@click.option('--config', type=click.Path(dir_okay=False),
               default=os.path.join(
                   click.get_app_dir('passata', force_posix=True),
                   'config.yml'),
@@ -476,10 +488,11 @@ class DB:
               help="Whether to colorize the output.")
 @click.version_option(version=__version__)
 @click.pass_context
-def cli(ctx, confpath, color):
-    """A simple password manager, inspired by pass."""  # noqa: D401
-    confpath = pathlib.Path(confpath).expanduser()
-    ctx.obj = {'_confpath': confpath}
+def cli(ctx, config, color):
+    """A simple password manager, inspired by pass."""
+    confpath = Path(config).expanduser()
+    obj: dict[str, Any] = {'_confpath': confpath}
+    ctx.obj = obj
     command = ctx.invoked_subcommand
     # When init is invoked there isn't supposed to be a config file yet
     if command != 'init':
@@ -492,17 +505,23 @@ def cli(ctx, confpath, color):
             and key not in cmd_config
         })
         ctx.color = color if color is not None else config.get('color')
-        DB.path = os.path.expanduser(config['database'])
         confdir = confpath.parent
-        pre_read_hook = confdir / 'hooks' / 'pre-read'
-        if pre_read_hook.is_file():
-            DB.pre_read_hook = pre_read_hook
-        post_write_hook = confdir / 'hooks' / 'post-write'
-        if post_write_hook.is_file():
-            DB.post_write_hook = post_write_hook
+
+        path = confdir / 'hooks' / 'pre-read'
+        pre_read_hook = path if path.is_file() else None
+        path = confdir / 'hooks' / 'post-write'
+        post_write_hook = path if path.is_file() else None
+
+        db = DB(
+            path=os.path.expanduser(config['database']),
+            pre_read_hook=pre_read_hook,
+            post_write_hook=post_write_hook,
+        )
+
         # We put the config in obj for the options that
         # don't correspond to a command-line option.
         ctx.obj.update(config)
+        ctx.obj['_db'] = db
         ctx.default_map = {command: cmd_config}
 
 
@@ -511,13 +530,13 @@ def cli(ctx, confpath, color):
               help="Do not prompt for confirmation.")
 @click.option('-g', '--gpg-id', prompt="GnuPG ID", default=default_gpg_id,
               help="GnuPG ID for database encryption.")
-@click.option('-p', '--path', 'dbpath', prompt="Database path",
+@click.option('-p', '--path', prompt="Database path",
               default='~/.passata.gpg', type=click.Path(dir_okay=False),
               help="Database path.")
 @click.pass_obj
-def init(obj, force, gpg_id, dbpath):
+def init(obj, force, gpg_id, path):
     """Initialize password database."""
-    dbpath = os.path.abspath(os.path.expanduser(dbpath))
+    dbpath = os.path.abspath(os.path.expanduser(path))
     lock_file(dbpath)
     confpath = obj['_confpath']
     config = {'database': dbpath, 'gpg_id': gpg_id}
@@ -531,20 +550,21 @@ def init(obj, force, gpg_id, dbpath):
 @click.option('-e', '--editor', default=os.environ.get('EDITOR', 'vim'),
               help="Which editor to use.")
 @click.pass_obj
-def config_(config, editor):
+def config_(obj, editor):
     """Edit the configuration file."""
-    click.edit(filename=config['_confpath'], editor=editor)
+    click.edit(filename=obj['_confpath'], editor=editor)
 
 
 @cli.command()
 @click.option('-n', '--no-tree', is_flag=True,
               help="Print entries in 'groupname/entryname' format.")
 @click.argument('group', required=False)
-def ls(group, no_tree):
+@click.pass_obj
+def ls(obj, group, no_tree):
     """List entries in a tree-like format."""
-    db = DB()
+    db: DB = obj['_db']
     db.read()
-    db.list(group, no_tree)
+    db.ls(group, no_tree)
 
 
 @cli.command()
@@ -553,25 +573,17 @@ def ls(group, no_tree):
 @click.option('-p', '--print', 'print_', is_flag=True,
               help="Whether to show the found entries.")
 @click.argument('names', nargs=-1)
-def find(names, no_tree, print_):
+@click.pass_obj
+def find(obj, names, no_tree, print_):
     """List matching entries in a tree-like format."""
-    db = DB()
+    db: DB = obj['_db']
     db.read()
-    names = [name.lower() for name in names]
-    matches = DB()
-    for groupname, entryname in db:
-        name = f'{groupname}/{entryname}'
-        if any(name in entryname.lower() for name in names):
-            matches.put(name, db.get(name))
-            continue
-        for keyword in db.keywords(name):
-            if any(name in keyword for name in names):
-                matches.put(f'{name} ({keyword})', db.get(name))
-                break
+    matches = db.find(names)
+
     if print_:
         echo(to_string(matches.db).strip())
     else:
-        matches.list(no_tree=no_tree)
+        matches.ls(no_tree=no_tree)
 
 
 @cli.command(short_help="Show entry, group or the whole database.")
@@ -580,14 +592,15 @@ def find(names, no_tree, print_):
 @click.option('-t', '--timeout', default=45,
               help="Number of seconds until the clipboard is cleared.")
 @click.argument('name', required=False)
-def show(name, clip, timeout):
+@click.pass_obj
+def show(obj, name, clip, timeout):
     """Decrypt and print the contents of NAME.
 
     NAME can be an entry, a group, or omitted to print the whole database. If
     NAME is an entry and --clip is specified, the password will stay in the
     clipboard until it is pasted.
     """
-    db = DB()
+    db: DB = obj['_db']
     db.read()
     entry = db.get(name)
     if entry is None:
@@ -603,7 +616,7 @@ def show(name, clip, timeout):
         echo(to_string(entry).strip())
 
 
-def do_insert(config, name, password, force):
+def do_insert(obj, name, password, force):
     """Insert `password` into `name` without deleting everything else.
 
     If `name` is already in the database, keep a backup of the old password.
@@ -611,7 +624,7 @@ def do_insert(config, name, password, force):
     """
     if isgroup(name):
         sys.exit(f"{name} is a group")
-    db = DB()
+    db: DB = obj['_db']
     db.read(lock=True)
     entry = db.get(name)
     old_password = None
@@ -624,7 +637,7 @@ def do_insert(config, name, password, force):
             entry['old_password'] = old_password
         entry['password'] = password
 
-    db.write(config['gpg_id'])
+    db.write(obj['gpg_id'])
     return old_password
 
 
@@ -634,18 +647,19 @@ def do_insert(config, name, password, force):
               help="Do not prompt for confirmation.")
 @click.password_option(help="Give password instead of being prompted for it.")
 @click.pass_obj
-def insert(config, name, force, password):
+def insert(obj, name, force, password):
     """Insert a new password.
 
     When overwriting an existing entry, the old password is kept in
     <old_password>.
     """
-    do_insert(config, name, password, force)
+    do_insert(obj, name, password, force)
 
 
 def generate_password(length, entropy, symbols, wordlist, force):
     """Generate a random password."""
     choice = random.SystemRandom().choice
+    pool: Sequence
     if wordlist:
         try:
             with open(os.path.expanduser(wordlist), encoding='utf-8') as f:
@@ -688,7 +702,7 @@ def generate_password(length, entropy, symbols, wordlist, force):
 @click.option('-w', '--wordlist', type=click.Path(dir_okay=False),
               help="List of words for passphrase generation.")
 @click.pass_obj
-def generate(config, name, force, print_, clip, timeout, length, entropy,
+def generate(obj, name, force, print_, clip, timeout, length, entropy,
              symbols, wordlist):
     """Generate a random password.
 
@@ -698,7 +712,7 @@ def generate(config, name, force, print_, clip, timeout, length, entropy,
     password = generate_password(length, entropy, symbols, wordlist, force)
     if print_ or (not name and not clip):
         click.echo(password)
-    old_password = do_insert(config, name, password, force) if name else None
+    old_password = do_insert(obj, name, password, force) if name else None
     if clip:
         if old_password is not None:
             to_clipboard(old_password, timeout=0)
@@ -713,7 +727,7 @@ def generate(config, name, force, print_, clip, timeout, length, entropy,
 @click.option('-e', '--editor', default=os.environ.get('EDITOR', 'vim'),
               help="Which editor to use.")
 @click.pass_obj
-def edit(config, name, editor):
+def edit(obj, name, editor):
     """Edit entry, group or the whole database."""
 
     class EventHandler(watchdog.events.PatternMatchingEventHandler):
@@ -744,9 +758,9 @@ def edit(config, name, editor):
             if not data:
                 return
             db.put(name, data)
-            db.write(config['gpg_id'])
+            db.write(obj['gpg_id'])
 
-    db = DB()
+    db: DB = obj['_db']
     db.read(lock=True)
     subdict = db.get(name) or {}
     original = to_string(subdict)
@@ -785,7 +799,7 @@ def edit(config, name, editor):
         sys.exit("Invalid yaml")
     else:
         db.put(name, data)
-        db.write(config['gpg_id'])
+        db.write(obj['gpg_id'])
 
 
 @cli.command()
@@ -793,14 +807,14 @@ def edit(config, name, editor):
 @click.option('-f', '--force', is_flag=True,
               help="Do not prompt for confirmation.")
 @click.pass_obj
-def rm(config, names, force):
+def rm(obj, names, force):
     """Remove entries or groups."""
-    db = DB()
+    db: DB = obj['_db']
     db.read(lock=True)
     if len(names) == 1:
         if db.pop(names[0], force) is None:
             sys.exit(f"{names[0]} not found")
-        db.write(config['gpg_id'])
+        db.write(obj['gpg_id'])
         return
 
     confirm(f"Delete {len(names)} arguments?", force)
@@ -809,7 +823,7 @@ def rm(config, names, force):
         if db.pop(name, force=True) is None:
             sys.exit(f"{name} not found")
 
-    db.write(config['gpg_id'])
+    db.write(obj['gpg_id'])
 
 
 @cli.command(short_help="Move or rename entries.")
@@ -818,9 +832,9 @@ def rm(config, names, force):
 @click.option('-f', '--force', is_flag=True,
               help="Do not prompt for confirmation.")
 @click.pass_obj
-def mv(config, source, dest, force):
+def mv(obj, source, dest, force):
     """Rename SOURCE to DEST or move SOURCE(s) to GROUP."""
-    db = DB()
+    db: DB = obj['_db']
     db.read(lock=True)
     if len(source) > 1 and not isgroup(dest):
         sys.exit(f"{dest} is not a group")
@@ -855,7 +869,7 @@ def mv(config, source, dest, force):
             entry = db.pop(name, force=True)
             db.put(newname, entry)
 
-    db.write(config['gpg_id'])
+    db.write(obj['gpg_id'])
 
 
 # Autotype
@@ -884,7 +898,7 @@ def keyboard(key, entry, delay):
 
 def get_autotype_keys(entry):
     """Return a list with the items that need to be typed."""
-    data: Optional[str] = entry.get('autotype')
+    data: str | None = entry.get('autotype')
 
     if data is None:
         if entry.get('username') and entry.get('password'):
@@ -905,9 +919,10 @@ def get_autotype_keys(entry):
               help="Delay between keystrokes in ms.")
 @click.option('-m', '--menu', default=['dmenu'],
               help="dmenu provider command.")
-def autotype(sequence, delay, menu):
+@click.pass_obj
+def autotype(obj, sequence, delay, menu):
     """Type login credentials."""
-    db = DB()
+    db: DB = obj['_db']
     db.read()
     window = active_window()
 
