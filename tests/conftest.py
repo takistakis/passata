@@ -18,6 +18,7 @@
 """The passata test suite conftest file."""
 
 import os
+from textwrap import dedent
 
 import click
 import pytest
@@ -27,28 +28,36 @@ import passata
 
 @pytest.fixture
 def db(tmpdir, monkeypatch):
-    monkeypatch.setattr(passata.DB, 'encrypt', lambda s, x, g: x)
-    monkeypatch.setattr(passata.DB, 'decrypt', lambda s, x: open(x).read())
+    monkeypatch.setattr(passata.DB, "encrypt", lambda s, x, g: x)
+    monkeypatch.setattr(passata.DB, "decrypt", lambda s, x: open(x).read())
 
-    confpath = tmpdir.join('config.yml')
-    dbpath = tmpdir.join('passata.db')
+    confpath = tmpdir.join("config.yml")
+    dbpath = tmpdir.join("passata.db")
 
     confpath.write(
-        f'database: {dbpath}\n'
-        'gpg_id: mail@mail.com\n'
+        dedent(
+            f"""\
+            database: {dbpath}
+            gpg_id: mail@mail.com
+            """
+        )
     )
 
     dbpath.write(
-        'internet:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
+        dedent(
+            """\
+            internet:
+              github:
+                password: gh
+                username: takis
+              reddit:
+                password: rdt
+                username: sakis
+            """
+        )
     )
 
-    os.environ['PASSATA_CONFIG_PATH'] = str(confpath)
+    os.environ["PASSATA_CONFIG_PATH"] = str(confpath)
 
     yield dbpath
 
@@ -57,9 +66,9 @@ def db(tmpdir, monkeypatch):
 def editor(monkeypatch):
     def make_editor(updated):
         def mock_editor(filename, editor):
-            with open(filename, 'w') as f:
+            with open(filename, "w") as f:
                 f.write(updated)
 
-        monkeypatch.setattr(click, 'edit', mock_editor)
+        monkeypatch.setattr(click, "edit", mock_editor)
 
     return make_editor

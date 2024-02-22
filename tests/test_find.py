@@ -17,90 +17,112 @@
 
 """Tests for passata find."""
 
+from textwrap import dedent
+
 from tests.helpers import clipboard, run
 
 
 def test_find(db):
-    result = run(['find', 'red'])
-    assert result.output == (
-        'internet\n'
-        '└── reddit\n'
+    result = run(["find", "red"])
+    assert result.output == dedent(
+        """\
+        internet
+        └── reddit
+        """
     )
 
 
 def test_find_multiple(db):
-    result = run(['find', 'red', 'git'])
-    assert result.output == (
-        'internet\n'
-        '├── github\n'
-        '└── reddit\n'
+    result = run(["find", "red", "git"])
+    assert result.output == dedent(
+        """\
+        internet
+        ├── github
+        └── reddit
+        """
     )
 
 
 def test_find_multiple_clip(db):
-    result = run(['find', 'red', 'git', '--clip'])
-    assert result.output == (
-        'internet\n'
-        '├── github\n'
-        '└── reddit\n'
-        '\n'
-        'Copied password of internet/github to clipboard.\n'
+    result = run(["find", "red", "git", "--clip"])
+    assert result.output == dedent(
+        """\
+        internet
+        ├── github
+        └── reddit
+
+        Copied password of internet/github to clipboard.
+        """
     )
-    assert clipboard() == 'gh'
+    assert clipboard() == "gh"
 
 
 def test_find_show(db):
-    result = run(['find', 'red', '--print'])
-    assert result.output == (
-        'internet:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
+    result = run(["find", "red", "--print"])
+    assert result.output == dedent(
+        """\
+        internet:
+          reddit:
+            password: rdt
+            username: sakis
+        """
     )
 
 
 def test_find_no_results(db):
-    result = run(['find', 'asdf'])
-    assert result.output == ''
+    result = run(["find", "asdf"])
+    assert result.output == ""
 
 
 def test_find_in_keyword(db, editor):
-    editor(updated=(
-        'username: user\n'
-        'password: pass\n'
-        'autotype: <username> Return !1.5 <password> Return\n'
-        'keywords:\n'
-        '- youtube\n'
-        '- gmail\n'
-    ))
-    run(['edit', 'group/google'])
+    editor(
+        updated=dedent(
+            """
+            username: user
+            password: pass
+            autotype: <username> Return !1.5 <password> Return
+            keywords:
+            - youtube
+            - gmail
+            """
+        )
+    )
+    run(["edit", "group/google"])
 
-    result = run(['find', 'mail'])
-    assert result.output == (
-        'group\n'
-        '└── google (gmail)\n'
+    result = run(["find", "mail"])
+    assert result.output == dedent(
+        """\
+        group
+        └── google (gmail)
+        """
     )
 
 
 def test_find_show_in_keyword(db, editor):
-    editor(updated=(
-        'username: user\n'
-        'password: pass\n'
-        'autotype: <username> Return !1.5 <password> Return\n'
-        'keywords:\n'
-        '- youtube\n'
-        '- gmail\n'
-    ))
-    run(['edit', 'group/google'])
+    editor(
+        updated=dedent(
+            """\
+            username: user
+            password: pass
+            autotype: <username> Return !1.5 <password> Return
+            keywords:
+            - youtube
+            - gmail
+            """
+        )
+    )
+    run(["edit", "group/google"])
 
-    result = run(['find', 'mail', '--print'])
-    assert result.output == (
-        'group:\n'
-        '  google (gmail):\n'
-        '    username: user\n'
-        '    password: pass\n'
-        '    autotype: <username> Return !1.5 <password> Return\n'
-        '    keywords:\n'
-        '    - youtube\n'
-        '    - gmail\n'
+    result = run(["find", "mail", "--print"])
+    assert result.output == dedent(
+        """\
+        group:
+          google (gmail):
+            username: user
+            password: pass
+            autotype: <username> Return !1.5 <password> Return
+            keywords:
+            - youtube
+            - gmail
+        """
     )

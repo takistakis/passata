@@ -35,6 +35,6 @@ def run(args, input=None):
 
 
 def clipboard():
-    command = ['pbpaste'] if sys.platform == 'darwin' else ['xsel', '-o', '-b']
+    command = ["pbpaste"] if sys.platform == "darwin" else ["xsel", "-o", "-b"]
     time.sleep(0.1)
     return passata.out(command)
