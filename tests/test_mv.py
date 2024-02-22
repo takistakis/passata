@@ -17,117 +17,133 @@
 
 """Tests for passata mv."""
 
+from textwrap import dedent
+
 import click
 
 from tests.helpers import read, run
 
 
 def test_mv_entry_to_entry(db):
-    result = run(['mv', 'internet/reddit', 'internet/rdt'])
+    result = run(["mv", "internet/reddit", "internet/rdt"])
     assert result.exit_code == 0
     assert result.exception is None
-    assert read(db) == (
-        'internet:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        '  rdt:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
+    assert read(db) == dedent(
+        """\
+        internet:
+          github:
+            password: gh
+            username: takis
+          rdt:
+            password: rdt
+            username: sakis
+        """
     )
 
 
 def test_mv_entry_to_group(db):
-    run(['mv', 'internet/reddit', 'new'])
-    assert read(db) == (
-        'internet:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        'new:\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
+    run(["mv", "internet/reddit", "new"])
+    assert read(db) == dedent(
+        """\
+        internet:
+          github:
+            password: gh
+            username: takis
+        new:
+          reddit:
+            password: rdt
+            username: sakis
+        """
     )
 
 
 def test_mv_entries_to_entry(db):
-    result = run(['mv', 'internet/reddit', 'internet/github', 'new/new'])
+    result = run(["mv", "internet/reddit", "internet/github", "new/new"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "new/new is not a group\n"
 
 
 def test_mv_entries_to_group(db):
-    run(['mv', 'internet/reddit', 'internet/github', 'new'])
-    assert read(db) == (
-        'new:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
+    run(["mv", "internet/reddit", "internet/github", "new"])
+    assert read(db) == dedent(
+        """\
+        new:
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: rdt
+            username: sakis
+        """
     )
 
 
 def test_mv_group_to_group(db):
-    run(['mv', 'internet', 'test'])
-    assert read(db) == (
-        'test:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
+    run(["mv", "internet", "test"])
+    assert read(db) == dedent(
+        """\
+        test:
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: rdt
+            username: sakis
+        """
     )
 
 
 def test_mv_group_to_entry(db):
-    result = run(['mv', 'internet', 'internet/github'])
+    result = run(["mv", "internet", "internet/github"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/github is not a group\n"
 
 
 def test_mv_nonexistent_entry(db):
-    result = run(['mv', 'internet/nonexistent', 'group'])
+    result = run(["mv", "internet/nonexistent", "group"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/nonexistent not found\n"
 
 
 def test_mv_nonexistent_group(db):
-    result = run(['mv', 'nonexistent', 'group'])
+    result = run(["mv", "nonexistent", "group"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "nonexistent not found\n"
 
 
 def test_mv_group_to_existing_group(db):
-    run(['insert', 'group/test', '--password=pass'])
-    result = run(['mv', 'group', 'internet'])
+    run(["insert", "group/test", "--password=pass"])
+    result = run(["mv", "group", "internet"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet already exists\n"
 
 
 def test_mv_overwrite(monkeypatch, db):
-    monkeypatch.setattr(click, 'confirm', lambda m: confirm)
+    monkeypatch.setattr(click, "confirm", lambda m: confirm)
 
     confirm = False
-    run(['mv', 'internet/reddit', 'internet/github'])
-    assert read(db) == (
-        'internet:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
+    run(["mv", "internet/reddit", "internet/github"])
+
+    assert read(db) == dedent(
+        """\
+        internet:
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: rdt
+            username: sakis
+        """
     )
 
     confirm = True
-    run(['mv', 'internet/reddit', 'internet/github'])
-    assert read(db) == (
-        'internet:\n'
-        '  github:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
+    run(["mv", "internet/reddit", "internet/github"])
+
+    assert read(db) == dedent(
+        """\
+        internet:
+          github:
+            password: rdt
+            username: sakis
+        """
     )
