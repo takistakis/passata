@@ -30,35 +30,38 @@ if sys.platform == "darwin":
 
 def test_get_autotype_keys(monkeypatch):
     # <autotype> field in entry
-    entry = {'username': 'takis', 'password': 'pass',
-             'autotype': '<password> !5 Return'}
+    entry = {
+        "username": "takis",
+        "password": "pass",
+        "autotype": "<password> !5 Return",
+    }
     autotype = passata.get_autotype_keys(entry)
-    assert autotype == ['<password>', '!5', 'Return']
+    assert autotype == ["<password>", "!5", "Return"]
 
     # <username> and <password> fields in entry
-    entry = {'username': 'takis', 'password': 'pass'}
+    entry = {"username": "takis", "password": "pass"}
     autotype = passata.get_autotype_keys(entry)
-    assert autotype == ['<username>', 'Tab', '<password>', 'Return']
+    assert autotype == ["<username>", "Tab", "<password>", "Return"]
 
     # <password> field in entry
-    entry = {'name': 'takis', 'password': 'pass'}
+    entry = {"name": "takis", "password": "pass"}
     autotype = passata.get_autotype_keys(entry)
-    assert autotype == ['<password>', 'Return']
+    assert autotype == ["<password>", "Return"]
 
     # No known fields in entry
     # Suppress notification
-    monkeypatch.setattr(passata, 'call', lambda command: None)
-    entry = {'name': 'takis', 'pass': 'pass'}
+    monkeypatch.setattr(passata, "call", lambda command: None)
+    entry = {"name": "takis", "pass": "pass"}
     with pytest.raises(SystemExit):
         passata.get_autotype_keys(entry)
 
 
 def test_autotype(monkeypatch, db):
-    monkeypatch.setattr(passata, 'active_window', lambda: (0, window_title))
-    monkeypatch.setattr(passata, 'call', lambda command: print(command))
+    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
+    monkeypatch.setattr(passata, "call", lambda command: print(command))
 
-    window_title = 'GitHub: The world\'s leading blah blah blah'
-    result = run(['autotype'])
+    window_title = "GitHub: The world's leading blah blah blah"
+    result = run(["autotype"])
     assert result.exception is None
     assert result.output == (
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'takis']\n"
@@ -69,13 +72,13 @@ def test_autotype(monkeypatch, db):
 
 
 def test_autotype_no_username(monkeypatch, db):
-    monkeypatch.setattr(passata, 'active_window', lambda: (0, window_title))
-    monkeypatch.setattr(passata, 'call', lambda command: print(command))
+    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
+    monkeypatch.setattr(passata, "call", lambda command: print(command))
 
-    run(['insert', 'autotype/test1', '--password=pass1'])
+    run(["insert", "autotype/test1", "--password=pass1"])
 
-    window_title = 'test1'
-    result = run(['autotype'])
+    window_title = "test1"
+    result = run(["autotype"])
     assert result.exception is None
     assert result.output == (
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'pass1']\n"
@@ -84,18 +87,15 @@ def test_autotype_no_username(monkeypatch, db):
 
 
 def test_autotype_keywords_simple(monkeypatch, db, editor):
-    monkeypatch.setattr(passata, 'active_window', lambda: (0, window_title))
-    monkeypatch.setattr(passata, 'call', lambda command: print(command))
+    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
+    monkeypatch.setattr(passata, "call", lambda command: print(command))
 
     # Add a new entry with a single string in keywords
-    editor(updated=(
-        'password: pass2\n'
-        'keywords: the keyword\n'
-    ))
-    run(['edit', 'autotype/test2'])
+    editor(updated=("password: pass2\n" "keywords: the keyword\n"))
+    run(["edit", "autotype/test2"])
 
-    window_title = 'A website with the keyword in its title'
-    result = run(['autotype'])
+    window_title = "A website with the keyword in its title"
+    result = run(["autotype"])
     assert result.exception is None
     assert result.output == (
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'pass2']\n"
@@ -104,36 +104,37 @@ def test_autotype_keywords_simple(monkeypatch, db, editor):
 
 
 def test_autotype_keywords_complex(monkeypatch, db, editor):
-    monkeypatch.setattr(passata, 'active_window', lambda: (0, window_title))
-    monkeypatch.setattr(passata, 'call', lambda command: print(command))
+    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
+    monkeypatch.setattr(passata, "call", lambda command: print(command))
 
     # Add a new entry with an autotype field and a list of
     # strings in keywords that conflict with another entry.
-    editor(updated=(
-        'username: user3\n'
-        'password: pass3\n'
-        'keywords:\n'
-        '- github\n'
-        '- yoyoyo\n'
-        'autotype: <username> Return !1.5 <password> Return\n'
-    ))
-    run(['edit', 'autotype/test3'])
+    editor(
+        updated=(
+            "username: user3\n"
+            "password: pass3\n"
+            "keywords:\n"
+            "- github\n"
+            "- yoyoyo\n"
+            "autotype: <username> Return !1.5 <password> Return\n"
+        )
+    )
+    run(["edit", "autotype/test3"])
 
     def fake_out(command, input):
-        print('Calling', command)
-        print('With input:')
+        print("Calling", command)
+        print("With input:")
         print(input)
         print()
-        return 'autotype/test3'
+        return "autotype/test3"
 
     # Patch user interaction with dmenu to choose the new entry
     # and sleeping to just print for how long it would sleep.
-    monkeypatch.setattr(passata, 'out', fake_out)
-    monkeypatch.setattr('time.sleep',
-                        lambda duration: print("Sleeping for", duration))
+    monkeypatch.setattr(passata, "out", fake_out)
+    monkeypatch.setattr("time.sleep", lambda duration: print("Sleeping for", duration))
 
-    window_title = 'GitHub'
-    result = run(['autotype'])
+    window_title = "GitHub"
+    result = run(["autotype"])
     assert result.exception is None
     assert result.output == (
         "Calling ['dmenu']\n"
@@ -150,16 +151,13 @@ def test_autotype_keywords_complex(monkeypatch, db, editor):
 
 
 def test_autotype_invalid(monkeypatch, db, editor):
-    monkeypatch.setattr(passata, 'active_window', lambda: (0, window_title))
+    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
     # Suppress notification
-    monkeypatch.setattr(passata, 'call', lambda command: None)
+    monkeypatch.setattr(passata, "call", lambda command: None)
 
-    editor(updated=(
-        'password: pass4\n'
-        'autotype: <username> Tab <password> Return\n'
-    ))
-    run(['edit', 'autotype/test4'])
+    editor(updated=("password: pass4\n" "autotype: <username> Tab <password> Return\n"))
+    run(["edit", "autotype/test4"])
 
-    window_title = 'test4'
-    result = run(['autotype'])
+    window_title = "test4"
+    result = run(["autotype"])
     assert isinstance(result.exception, SystemExit)

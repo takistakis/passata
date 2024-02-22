@@ -19,5 +19,6 @@ test:
 	coverage run -m pytest
 	coverage report
 	mypy passata.py --disallow-untyped-defs
+	black *.py tests
 
 .PHONY: install uninstall test

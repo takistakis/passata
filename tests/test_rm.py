@@ -17,6 +17,8 @@
 
 """Tests for passata rm."""
 
+from textwrap import dedent
+
 import click
 
 from tests.helpers import read, run
@@ -24,47 +26,51 @@ from tests.helpers import read, run
 
 def test_rm_entry(monkeypatch, db):
     # Normal removal
-    run(['rm', '--force', 'internet/reddit'])
-    assert read(db) == (
-        'internet:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
+    run(["rm", "--force", "internet/reddit"])
+    assert read(db) == dedent(
+        """\
+        internet:
+          github:
+            password: gh
+            username: takis
+        """
     )
 
     # Remove nonexistent entry
-    result = run(['rm', 'internet/nonexistent'])
+    result = run(["rm", "internet/nonexistent"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/nonexistent not found\n"
 
     # Do not confirm removal
-    monkeypatch.setattr(click, 'confirm', lambda m: False)
-    run(['rm', 'internet/github'])
-    assert read(db) == (
-        'internet:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
+    monkeypatch.setattr(click, "confirm", lambda m: False)
+    run(["rm", "internet/github"])
+    assert read(db) == dedent(
+        """\
+        internet:
+          github:
+            password: gh
+            username: takis
+        """
     )
 
     # Remove last entry
-    run(['rm', '--force', 'internet/github'])
-    assert read(db) == ''
+    run(["rm", "--force", "internet/github"])
+    assert read(db) == ""
 
 
 def test_rm_entries(db):
-    run(['rm', '--force', 'internet/reddit', 'internet/github'])
-    assert read(db) == ''
+    run(["rm", "--force", "internet/reddit", "internet/github"])
+    assert read(db) == ""
 
-    result = run(['rm', '--force', 'asdf/asdf', 'asdf/asdf2'])
+    result = run(["rm", "--force", "asdf/asdf", "asdf/asdf2"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "asdf/asdf not found\n"
 
 
 def test_rm_group(db):
-    result = run(['rm', '--force', 'asdf'])
+    result = run(["rm", "--force", "asdf"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "asdf not found\n"
 
-    run(['rm', '--force', 'internet'])
-    assert read(db) == ''
+    run(["rm", "--force", "internet"])
+    assert read(db) == ""

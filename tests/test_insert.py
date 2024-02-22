@@ -17,107 +17,122 @@
 
 """Tests for passata insert."""
 
+from textwrap import dedent
+
 import click
 
 from tests.helpers import read, run
 
 
 def test_insert_to_group(db):
-    result = run(['insert', 'group', '--password=pass'])
+    result = run(["insert", "group", "--password=pass"])
     assert isinstance(result.exception, SystemExit)
-    assert result.output == 'group is a group\n'
+    assert result.output == "group is a group\n"
 
 
 def test_insert_entry(db):
-    run(['insert', 'group/test', '--password=pass'])
-    assert read(db) == (
-        'internet:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
-        'group:\n'
-        '  test:\n'
-        '    password: pass\n')
+    run(["insert", "group/test", "--password=pass"])
+    assert read(db) == dedent(
+        """\
+        internet:
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: rdt
+            username: sakis
+        group:
+          test:
+            password: pass
+        """
+    )
 
 
 def test_insert_force_update(db):
-    run(['insert', 'internet/reddit', '--force', '--password=newpass'])
-    assert read(db) == (
-        'internet:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        '  reddit:\n'
-        '    password: newpass\n'
-        '    username: sakis\n'
-        '    old_password: rdt\n'
+    run(["insert", "internet/reddit", "--force", "--password=newpass"])
+    assert read(db) == dedent(
+        """\
+        internet:
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: newpass
+            username: sakis
+            old_password: rdt
+        """
     )
 
 
 def test_insert_confirm_update(monkeypatch, db):
-    monkeypatch.setattr(click, 'confirm', lambda m: confirm)
+    monkeypatch.setattr(click, "confirm", lambda m: confirm)
     confirm = True
-    run(['insert', 'internet/reddit', '--password=newpass'])
-    assert read(db) == (
-        'internet:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        '  reddit:\n'
-        '    password: newpass\n'
-        '    username: sakis\n'
-        '    old_password: rdt\n'
+    run(["insert", "internet/reddit", "--password=newpass"])
+    assert read(db) == dedent(
+        """\
+        internet:
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: newpass
+            username: sakis
+            old_password: rdt
+        """
     )
 
 
 def test_insert_do_not_confirm_update(monkeypatch, db):
-    monkeypatch.setattr(click, 'confirm', lambda m: confirm)
+    monkeypatch.setattr(click, "confirm", lambda m: confirm)
     confirm = False
-    result = run(['insert', 'internet/reddit', '--password=newpass'])
+    result = run(["insert", "internet/reddit", "--password=newpass"])
     assert result.exception is None
-    assert read(db) == (
-        'internet:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
+    assert read(db) == dedent(
+        """\
+        internet:
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: rdt
+            username: sakis
+        """
     )
 
 
 def test_insert_no_password_no_backup(db, editor):
-    editor(updated='username: user\n')
-    run(['edit', 'group/test'])
-    run(['insert', 'group/test', '--password=pass'])
-    assert read(db) == (
-        'internet:\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
-        'group:\n'
-        '  test:\n'
-        '    username: user\n'
-        '    password: pass\n'
+    editor(updated="username: user\n")
+    run(["edit", "group/test"])
+    run(["insert", "group/test", "--password=pass"])
+    assert read(db) == dedent(
+        """\
+        internet:
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: rdt
+            username: sakis
+        group:
+          test:
+            username: user
+            password: pass
+        """
     )
 
 
 def test_insert_sort(db):
-    run(['insert', 'internet/asdf', '--password=pass'])
-    assert read(db) == (
-        'internet:\n'
-        '  asdf:\n'
-        '    password: pass\n'
-        '  github:\n'
-        '    password: gh\n'
-        '    username: takis\n'
-        '  reddit:\n'
-        '    password: rdt\n'
-        '    username: sakis\n'
+    run(["insert", "internet/asdf", "--password=pass"])
+    assert read(db) == dedent(
+        """\
+        internet:
+          asdf:
+            password: pass
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: rdt
+            username: sakis
+        """
     )

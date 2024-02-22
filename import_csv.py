@@ -30,11 +30,15 @@ import passata
 
 
 @click.command()
-@click.option('--config', 'confpath', type=click.Path(dir_okay=False),
-              default=os.path.join(click.get_app_dir('passata'), 'config.yml'),
-              envvar='PASSATA_CONFIG_PATH',
-              help="Path of the configuration file.")
-@click.argument('file', type=click.File())
+@click.option(
+    "--config",
+    "confpath",
+    type=click.Path(dir_okay=False),
+    default=os.path.join(click.get_app_dir("passata"), "config.yml"),
+    envvar="PASSATA_CONFIG_PATH",
+    help="Path of the configuration file.",
+)
+@click.argument("file", type=click.File())
 def import_csv(confpath, file):
     """Migrate a keepassx2 csv database to passata yaml format.
 
@@ -43,27 +47,27 @@ def import_csv(confpath, file):
     properties, this script will fail.
     """
     config = passata.read_config(confpath)
-    db = passata.DB(config['database'])
+    db = passata.DB(config["database"])
     next(file)  # Skip headers
     for line in csv.reader(file):
         group, title, username, password, url, notes = line
-        if not group.startswith('Root/'):
+        if not group.startswith("Root/"):
             sys.exit("Every entry should be in a group")
         group = group[5:]  # Skip 'Root/'
-        name = '/'.join([group, title])
+        name = "/".join([group, title])
         entry = collections.OrderedDict()
         if username:
-            entry['username'] = username
+            entry["username"] = username
         if password:
-            entry['password'] = password
+            entry["password"] = password
         if url:
-            entry['url'] = url
+            entry["url"] = url
         if notes:
-            entry['notes'] = notes
+            entry["notes"] = notes
         db.put(name, entry)
 
-    db.write(config['gpg_id'], force=False)
+    db.write(config["gpg_id"], force=False)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import_csv()

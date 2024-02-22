@@ -29,12 +29,12 @@ from tests.helpers import run
 
 def test_non_zero_exit_status():
     with pytest.raises(SystemExit):
-        passata.call(['false'])
+        passata.call(["false"])
 
 
 def test_command_not_found():
     with pytest.raises(SystemExit):
-        passata.call(['there_is_no_such_executable.exe'])
+        passata.call(["there_is_no_such_executable.exe"])
 
 
 def background_lock(db):
@@ -51,14 +51,14 @@ def test_lock(monkeypatch, db):
     process.start()
     time.sleep(0.5)
 
-    result = run(['rm', 'internet/github', '--force'])
+    result = run(["rm", "internet/github", "--force"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Another passata process is editing the database\n"
 
     result = process.join()
 
-    result = run(['rm', 'internet/github', '--force'])
-    assert result.output == ''
+    result = run(["rm", "internet/github", "--force"])
+    assert result.output == ""
     assert result.exception is None
 
     try:
@@ -70,12 +70,13 @@ def test_lock(monkeypatch, db):
         # either, because we ignore any FileNotFoundError.
         passata.unlock_file(str(db))
     except Exception as e:
-        pytest.fail(f'unlock_file: {e}')
+        pytest.fail(f"unlock_file: {e}")
 
 
 def test_default_gpg_id(monkeypatch):
-    monkeypatch.setattr(passata, 'out', lambda cmd: output)
-    output = textwrap.dedent("""\
+    monkeypatch.setattr(passata, "out", lambda cmd: output)
+    output = textwrap.dedent(
+        """\
         /home/user/.gnupg/pubring.kbx
         ------------------------------
         sec   rsa4096 2015-02-26 [SC] [expires: 2018-12-20]
@@ -86,10 +87,11 @@ def test_default_gpg_id(monkeypatch):
         sec   rsa4096 2016-01-1 [SC] [expires: 2018-1-1]
             0123456789ABCDEF0123456789ABCDEF01234567
         uid           [ultimate] Name Surname <mail2@mail.com>
-        ssb   rsa4096 2016-01-1 [E] [expires: 2018-1-1]""")
-    assert passata.default_gpg_id() == 'mail@mail.com'
+        ssb   rsa4096 2016-01-1 [E] [expires: 2018-1-1]"""
+    )
+    assert passata.default_gpg_id() == "mail@mail.com"
     # No secret keys
-    output = ''
+    output = ""
     with pytest.raises(SystemExit):
         passata.default_gpg_id()
 
@@ -98,24 +100,29 @@ def test_keywords(db):
     db = passata.DB(str(db))
 
     # The `keywords` field is empty
-    db.put('internet/reddit', {
-        'username': 'takis',
-        'password': 'pass',
-    })
-    assert db.keywords('internet/reddit') == []
+    db.put(
+        "internet/reddit",
+        {
+            "username": "takis",
+            "password": "pass",
+        },
+    )
+    assert db.keywords("internet/reddit") == []
 
     # The `keywords` field contains a string
-    db.put('internet/reddit', {
-        'username': 'takis',
-        'password': 'pass',
-        'keywords': 'Keyword'
-    })
-    assert db.keywords('internet/reddit') == ['keyword']
+    db.put(
+        "internet/reddit",
+        {"username": "takis", "password": "pass", "keywords": "Keyword"},
+    )
+    assert db.keywords("internet/reddit") == ["keyword"]
 
     # The `keywords` field contains a list of strings
-    db.put('internet/reddit', {
-        'username': 'takis',
-        'password': 'pass',
-        'keywords': ['Google', 'YouTube', 'Gmail']
-    })
-    assert db.keywords('internet/reddit') == ['google', 'youtube', 'gmail']
+    db.put(
+        "internet/reddit",
+        {
+            "username": "takis",
+            "password": "pass",
+            "keywords": ["Google", "YouTube", "Gmail"],
+        },
+    )
+    assert db.keywords("internet/reddit") == ["google", "youtube", "gmail"]
