@@ -21,102 +21,101 @@ from tests.helpers import clipboard, run
 
 
 def test_show(db):
-    result = run(['show', 'internet/github'])
-    assert result.output == (
-        'password: gh\n'
-        'username: takis\n'
-    )
+    result = run(["show", "internet/github"])
+    assert result.output == ("password: gh\n" "username: takis\n")
 
 
 def test_show_nonexistent_entry(db):
-    result = run(['show', 'internet/nonexistent'])
+    result = run(["show", "internet/nonexistent"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/nonexistent not found\n"
 
 
 def test_show_entry_three_levels_deep(db):
-    result = run(['show', 'one/two/three'])
+    result = run(["show", "one/two/three"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "one/two/three is nested too deeply\n"
 
 
 def test_show_clipboard(db):
-    result = run(['show', 'internet/github', '--clip'])
-    assert result.output == ''
-    assert clipboard() == 'gh'
+    result = run(["show", "internet/github", "--clip"])
+    assert result.output == ""
+    assert clipboard() == "gh"
 
 
 def test_show_clipboard_whole_database(db):
-    result = run(['show', '--clip'])
+    result = run(["show", "--clip"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Can't put the entire database to clipboard\n"
 
 
 def test_show_clipboard_whole_group(db):
-    result = run(['show', 'internet', '--clip'])
+    result = run(["show", "internet", "--clip"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Can't put the entire group to clipboard\n"
 
 
 def test_show_group(db):
-    result = run(['show', 'internet'])
+    result = run(["show", "internet"])
     assert result.output == (
-        'github:\n'
-        '  password: gh\n'
-        '  username: takis\n'
-        'reddit:\n'
-        '  password: rdt\n'
-        '  username: sakis\n'
+        "github:\n"
+        "  password: gh\n"
+        "  username: takis\n"
+        "reddit:\n"
+        "  password: rdt\n"
+        "  username: sakis\n"
     )
 
 
 def test_show_group_with_trailing_slash(db):
-    result = run(['show', 'internet/'])
+    result = run(["show", "internet/"])
     assert result.output == (
-        'github:\n'
-        '  password: gh\n'
-        '  username: takis\n'
-        'reddit:\n'
-        '  password: rdt\n'
-        '  username: sakis\n'
+        "github:\n"
+        "  password: gh\n"
+        "  username: takis\n"
+        "reddit:\n"
+        "  password: rdt\n"
+        "  username: sakis\n"
     )
 
 
 def test_show_color(db, editor):
     # Insert a new entry with a list
-    editor(updated=(
-        'username: user\n'
-        'password: pass\n'
-        'autotype: <username> Return !1.5 <password> Return\n'
-        'keywords:\n'
-        '- youtube\n'
-        '- gmail\n'
-    ))
-    run(['edit', 'group/google'])
+    editor(
+        updated=(
+            "username: user\n"
+            "password: pass\n"
+            "autotype: <username> Return !1.5 <password> Return\n"
+            "keywords:\n"
+            "- youtube\n"
+            "- gmail\n"
+        )
+    )
+    run(["edit", "group/google"])
 
     # Test show without color
     expected = (
-        'google:\n'
-        '  username: user\n'
-        '  password: pass\n'
-        '  autotype: <username> Return !1.5 <password> Return\n'
-        '  keywords:\n'
-        '  - youtube\n'
-        '  - gmail\n'
+        "google:\n"
+        "  username: user\n"
+        "  password: pass\n"
+        "  autotype: <username> Return !1.5 <password> Return\n"
+        "  keywords:\n"
+        "  - youtube\n"
+        "  - gmail\n"
     )
-    result = run(['--no-color', 'show', 'group'])
+    result = run(["--no-color", "show", "group"])
     assert result.output == expected
 
     # Test show with color
     expected = (
-        '\033[38;5;12mgoogle\033[38;5;11m:\033[0m\n'
-        '\033[38;5;12m  username\033[38;5;11m:\033[0m user\n'
-        '\033[38;5;12m  password\033[38;5;11m:\033[0m pass\n'
-        '\033[38;5;12m  autotype\033[38;5;11m:\033[0m '
-        '<username> Return !1.5 <password> Return\n'
-        '\033[38;5;12m  keywords\033[38;5;11m:\033[0m\n'
-        '\033[38;5;9m  - \033[0myoutube\n'
-        '\033[38;5;9m  - \033[0mgmail\n'
+        "\033[38;5;12mgoogle\033[38;5;11m:\033[0m\n"
+        "\033[38;5;12m  username\033[38;5;11m:\033[0m user\n"
+        "\033[38;5;12m  password\033[38;5;11m:\033[0m pass\n"
+        "\033[38;5;12m  autotype\033[38;5;11m:\033[0m "
+        "<username> Return !1.5 <password> Return\n"
+        "\033[38;5;12m  keywords\033[38;5;11m:\033[0m\n"
+        "\033[38;5;9m  - \033[0myoutube\n"
+        "\033[38;5;9m  - \033[0mgmail\n"
     )
-    result = run(['--color', 'show', 'group'])
+    result = run(["--color", "show", "group"])
     assert result.output == expected
