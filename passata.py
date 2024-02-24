@@ -153,14 +153,42 @@ def unlock_file(path: str) -> None:
         pass
 
 
+def schedule_clear_clipboard(timeout: int) -> None:
+    """Clear clipboard after timeout seconds.
+
+    Write a bash script in /tmp/ and execute it on the background.
+    """
+    scriptpath = "/tmp/clear-clipboard.sh"
+
+    with open(scriptpath, "w") as f:
+        f.writelines(
+            [
+                "#!/bin/bash\n",
+                "\n",
+                f"sleep {timeout}\n",
+                "echo -n '' | pbcopy\n",
+            ]
+        )
+
+    os.chmod(scriptpath, 0o755)
+
+    subprocess.Popen(scriptpath, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
 def to_clipboard(data: str, timeout: int) -> None:
-    """Put `data` to clipboard until `timeout` seconds pass."""
+    """Put `data` to clipboard until `timeout` seconds pass.
+
+    If `timeout` is 0, the clipboard is not cleared.
+    """
     command = (
         ["pbcopy", "w"]
         if sys.platform == "darwin"
         else ["xsel", "-i", "-b", "-t", str(timeout * 1000)]
     )
     call(command, input=data)
+
+    if sys.platform == "darwin" and timeout > 0:
+        schedule_clear_clipboard(timeout)
 
 
 def confirm(message: str, force: bool) -> None:
@@ -604,6 +632,12 @@ def ls(obj: Dict[str, Any], group: Optional[str], no_tree: bool) -> None:
     default=False,
     help="Copy the first result's password to clipboard.",
 )
+@click.option(
+    "-t",
+    "--timeout",
+    default=45,
+    help="Number of seconds until the clipboard is cleared.",
+)
 @click.argument("names", nargs=-1)
 @click.pass_obj
 def find(
@@ -612,6 +646,7 @@ def find(
     no_tree: bool,
     print_: bool,
     clip: bool,
+    timeout: int,
 ) -> None:
     """List matching entries in a tree-like format."""
     db: DB = obj["_db"]
@@ -627,7 +662,7 @@ def find(
         groupname, entryname = next(iter(matches))
         first_match = matches.get(f"{groupname}/{entryname}")
         assert first_match is not None
-        to_clipboard(first_match["password"], timeout=0)
+        to_clipboard(first_match["password"], timeout)
         click.echo()
         click.echo(f"Copied password of {groupname}/{entryname} to clipboard.")
 
