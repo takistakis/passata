@@ -28,10 +28,6 @@ If you want to use zsh completion, you can copy `_passata` to a
 directory in `$fpath`. `/usr/local/share/zsh/site-functions/` will
 probably do.
 
-Once passata has been initialized (by running `passata init`), you can
-import a keepassx2 database exported as csv, using the `import_csv.py`
-script.
-
 ## Usage
 
     $ passata --help
