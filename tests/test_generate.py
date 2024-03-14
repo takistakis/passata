@@ -247,3 +247,41 @@ def test_generate_put_in_existing_entry_clip(patch, db):
         "    password: rdt\n"
         "    username: sakis\n"
     )
+
+
+class TestGetWordpath:
+    """Test get_wordpath function."""
+
+    def test_wordpath_not_none(self):
+        """
+        Test that the function returns the provided wordpath if it's not None.
+        """
+        wordpath = "/path/to/wordlist.txt"
+        assert passata.get_wordpath(wordpath) == wordpath
+
+    def test_wordpath_in_directories(self, monkeypatch):
+        """
+        Test that the function returns the wordpath if it exists in one of the
+        directories.
+        """
+        monkeypatch.setattr("os.path.exists", lambda x: True)
+        wordpath = passata.get_wordpath(None)
+        assert wordpath.endswith("eff_large_wordlist.txt")
+        assert any(
+            wordpath.startswith(directory)
+            for directory in [
+                "/usr/local/share/passata",
+                "/usr/share/passata",
+            ]
+        )
+
+    def test_wordpath_not_found(self, monkeypatch):
+        """
+        Test that the function exits if the wordpath is not found in any of the
+        directories.
+        """
+        monkeypatch.setattr("os.path.exists", lambda x: False)
+        with pytest.raises(SystemExit) as cm:
+            passata.get_wordpath(None)
+
+        assert str(cm.value) == "--words option requires a wordpath"

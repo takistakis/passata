@@ -744,6 +744,21 @@ def insert(obj: Dict[str, Any], name: str, force: bool, password: str) -> None:
     do_insert(obj, name, password, force)
 
 
+def get_wordpath(wordpath: Optional[str]) -> str:
+    """Return the path of the diceware words file."""
+    if wordpath is not None:
+        return wordpath
+
+    filename = "eff_large_wordlist.txt"
+    directories = ["/usr/local/share/passata", "/usr/share/passata"]
+    for directory in directories:
+        wordpath = os.path.join(directory, filename)
+        if os.path.exists(wordpath):
+            return wordpath
+
+    sys.exit("--words option requires a wordpath")
+
+
 def generate_password(
     length: Optional[int],
     entropy: Optional[float],
@@ -756,19 +771,7 @@ def generate_password(
     choice = random.SystemRandom().choice
     pool: Sequence
     if words:
-        if wordpath is None:
-            filename = "eff_large_wordlist.txt"
-            for directory in [
-                "/usr/local/share/passata",
-                "/usr/share/passata",
-            ]:
-                wordpath = os.path.join(directory, filename)
-                if os.path.exists(wordpath):
-                    break
-            else:
-                sys.exit("--words option requires a wordpath")
-
-        assert wordpath is not None
+        wordpath = get_wordpath(wordpath)
         try:
             with open(os.path.expanduser(wordpath), encoding="utf-8") as f:
                 pool = f.read().strip().split("\n")
