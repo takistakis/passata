@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "passata"
+version = "0.1.0"
+description = "A simple password manager, inspired by pass."
+authors = ["Panagiotis Ktistakis <panktist@gmail.com>"]
+license = "GPL-3.0-or-later"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8.1"
+click = "^8.1.7"
+pyyaml = "^6.0.1"
+watchdog = "^4.0.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "*"
+coverage = "*"
+flake8 = "*"
+ipdb = "*"
+isort = "*"
+mypy = "*"
+pytest = "*"
+types-pyyaml = "*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
