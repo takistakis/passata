@@ -319,6 +319,7 @@ class DB:
             lock_file(self.path)
         self.data = self.decrypt(self.path)
         self.db = to_dict(self.data)
+        self.validate()
 
     @staticmethod
     def encrypt(data: str, gpg_id: str) -> str:  # pragma: no cover
@@ -496,6 +497,22 @@ class DB:
         """Execute post-write hook if existing."""
         if self.post_write_hook is not None:
             call(self.post_write_hook)
+
+    def validate(self) -> None:
+        """Validate the database.
+
+        Exit if the database is not a valid Database.
+        """
+        if not isinstance(self.db, dict):
+            sys.exit("Database is not a dict")
+
+        for groupname, group in self.db.items():
+            if not isinstance(group, dict):
+                sys.exit(f"Group '{groupname}' is not a dict")
+
+            for entryname, entry in group.items():
+                if not isinstance(entry, dict):
+                    sys.exit(f"Entry '{entryname}' is not a dict")
 
 
 # Commands
