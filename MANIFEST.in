@@ -2,7 +2,8 @@ include *.py
 include _passata
 include COPYING
 include README.md
-include requirements.txt
+include pyproject.toml
+include poetry.lock
 include Makefile
 include tests/*.py
 include eff_large_wordlist.txt
