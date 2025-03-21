@@ -17,14 +17,16 @@
 
 """Tests for passata rm."""
 
+from pathlib import Path
 from textwrap import dedent
 
 import click
+from pytest import MonkeyPatch
 
 from tests.helpers import read, run
 
 
-def test_rm_entry(monkeypatch, db):
+def test_rm_entry(monkeypatch: MonkeyPatch, db: Path) -> None:
     # Normal removal
     run(["rm", "--force", "internet/reddit"])
     assert read(db) == dedent(
@@ -58,7 +60,7 @@ def test_rm_entry(monkeypatch, db):
     assert read(db) == ""
 
 
-def test_rm_entries(db):
+def test_rm_entries(db: Path) -> None:
     run(["rm", "--force", "internet/reddit", "internet/github"])
     assert read(db) == ""
 
@@ -67,7 +69,7 @@ def test_rm_entries(db):
     assert result.output == "asdf/asdf not found\n"
 
 
-def test_rm_group(db):
+def test_rm_group(db: Path) -> None:
     result = run(["rm", "--force", "asdf"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "asdf not found\n"
