@@ -19,22 +19,24 @@
 
 import sys
 import time
+from pathlib import Path
+from typing import Sequence
 
-import click.testing
+from click.testing import CliRunner, Result
 
 import passata
 
 
-def read(dbpath):
+def read(dbpath: Path) -> str:
     return dbpath.open().read()
 
 
-def run(args, input=None):
-    runner = click.testing.CliRunner()
+def run(args: Sequence[str], input: str | None = None) -> Result:
+    runner = CliRunner()
     return runner.invoke(passata.cli, args, input)
 
 
-def clipboard():
+def clipboard() -> str:
     command = ["pbpaste"] if sys.platform == "darwin" else ["xsel", "-o", "-b"]
     time.sleep(0.1)
     return passata.out(command)

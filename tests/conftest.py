@@ -18,7 +18,9 @@
 """The passata test suite conftest file."""
 
 import os
+from pathlib import Path
 from textwrap import dedent
+from typing import Callable, Generator
 
 import click
 import pytest
@@ -27,14 +29,14 @@ import passata
 
 
 @pytest.fixture
-def db(tmpdir, monkeypatch):
+def db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
     monkeypatch.setattr(passata.DB, "encrypt", lambda s, x, g: x)
     monkeypatch.setattr(passata.DB, "decrypt", lambda s, x: open(x).read())
 
-    confpath = tmpdir.join("config.yml")
-    dbpath = tmpdir.join("passata.db")
+    confpath = tmp_path / "config.yml"
+    dbpath = tmp_path / "passata.db"
 
-    confpath.write(
+    confpath.write_text(
         dedent(
             f"""\
             database: {dbpath}
@@ -43,7 +45,7 @@ def db(tmpdir, monkeypatch):
         )
     )
 
-    dbpath.write(
+    dbpath.write_text(
         dedent(
             """\
             internet:
@@ -63,12 +65,14 @@ def db(tmpdir, monkeypatch):
 
 
 @pytest.fixture
-def editor(monkeypatch):
-    def make_editor(updated):
-        def mock_editor(filename, editor):
+def editor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[Callable[[str], None], None, None]:
+    def make_editor(updated: str) -> None:
+        def mock_editor(filename: str, editor: str) -> None:
             with open(filename, "w") as f:
                 f.write(updated)
 
         monkeypatch.setattr(click, "edit", mock_editor)
 
-    return make_editor
+    yield make_editor

@@ -18,7 +18,7 @@ test:
 	isort passata.py tests/
 	coverage run -m pytest
 	coverage report
-	mypy passata.py --disallow-untyped-defs
+	mypy passata.py tests/ --disallow-untyped-defs
 	black *.py tests
 
 .PHONY: install uninstall test

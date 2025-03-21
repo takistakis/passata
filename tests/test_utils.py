@@ -20,31 +20,33 @@
 import multiprocessing
 import textwrap
 import time
+from pathlib import Path
 
 import pytest
+from pytest import MonkeyPatch
 
 import passata
 from tests.helpers import run
 
 
-def test_non_zero_exit_status():
+def test_non_zero_exit_status() -> None:
     with pytest.raises(SystemExit):
         passata.call(["false"])
 
 
-def test_command_not_found():
+def test_command_not_found() -> None:
     with pytest.raises(SystemExit):
         passata.call(["there_is_no_such_executable.exe"])
 
 
-def background_lock(db):
+def background_lock(db: Path) -> None:
     # Assign the lock to a variable to keep it in scope and prevent the file
     # from closing.
     lock = passata.lock_file(str(db))  # noqa
     time.sleep(1)
 
 
-def test_lock(monkeypatch, db):
+def test_lock(monkeypatch: MonkeyPatch, db: Path) -> None:
     # lockf locks are bound to processes, not file descriptors
     # so we have to use a forked process to properly test this.
     process = multiprocessing.Process(target=background_lock, args=(db,))
@@ -55,7 +57,7 @@ def test_lock(monkeypatch, db):
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Another passata process is editing the database\n"
 
-    result = process.join()
+    process.join()
 
     result = run(["rm", "internet/github", "--force"])
     assert result.output == ""
@@ -73,8 +75,7 @@ def test_lock(monkeypatch, db):
         pytest.fail(f"unlock_file: {e}")
 
 
-def test_default_gpg_id(monkeypatch):
-    monkeypatch.setattr(passata, "out", lambda cmd: output)
+def test_default_gpg_id(monkeypatch: MonkeyPatch) -> None:
     output = textwrap.dedent(
         """\
         /home/user/.gnupg/pubring.kbx
@@ -89,35 +90,36 @@ def test_default_gpg_id(monkeypatch):
         uid           [ultimate] Name Surname <mail2@mail.com>
         ssb   rsa4096 2016-01-1 [E] [expires: 2018-1-1]"""
     )
+    monkeypatch.setattr(passata, "out", lambda cmd: output)
     assert passata.default_gpg_id() == "mail@mail.com"
     # No secret keys
-    output = ""
+    monkeypatch.setattr(passata, "out", lambda cmd: "")
     with pytest.raises(SystemExit):
         passata.default_gpg_id()
 
 
-def test_keywords(db):
-    db = passata.DB(str(db))
+def test_keywords(db: Path) -> None:
+    database = passata.DB(str(db))
 
     # The `keywords` field is empty
-    db.put(
+    database.put(
         "internet/reddit",
         {
             "username": "takis",
             "password": "pass",
         },
     )
-    assert db.keywords("internet/reddit") == []
+    assert database.keywords("internet/reddit") == []
 
     # The `keywords` field contains a string
-    db.put(
+    database.put(
         "internet/reddit",
         {"username": "takis", "password": "pass", "keywords": "Keyword"},
     )
-    assert db.keywords("internet/reddit") == ["keyword"]
+    assert database.keywords("internet/reddit") == ["keyword"]
 
     # The `keywords` field contains a list of strings
-    db.put(
+    database.put(
         "internet/reddit",
         {
             "username": "takis",
@@ -125,4 +127,4 @@ def test_keywords(db):
             "keywords": ["Google", "YouTube", "Gmail"],
         },
     )
-    assert db.keywords("internet/reddit") == ["google", "youtube", "gmail"]
+    assert database.keywords("internet/reddit") == ["google", "youtube", "gmail"]

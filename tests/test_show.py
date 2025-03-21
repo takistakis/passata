@@ -17,12 +17,14 @@
 
 """Tests for passata show."""
 
+from pathlib import Path
 from textwrap import dedent
+from typing import Callable
 
 from tests.helpers import clipboard, run
 
 
-def test_show(db):
+def test_show(db: Path) -> None:
     result = run(["show", "internet/github"])
     assert result.output == dedent(
         """\
@@ -32,37 +34,37 @@ def test_show(db):
     )
 
 
-def test_show_nonexistent_entry(db):
+def test_show_nonexistent_entry(db: Path) -> None:
     result = run(["show", "internet/nonexistent"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/nonexistent not found\n"
 
 
-def test_show_entry_three_levels_deep(db):
+def test_show_entry_three_levels_deep(db: Path) -> None:
     result = run(["show", "one/two/three"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "one/two/three is nested too deeply\n"
 
 
-def test_show_clipboard(db):
+def test_show_clipboard(db: Path) -> None:
     result = run(["show", "internet/github", "--clip"])
     assert result.output == ""
     assert clipboard() == "gh"
 
 
-def test_show_clipboard_whole_database(db):
+def test_show_clipboard_whole_database(db: Path) -> None:
     result = run(["show", "--clip"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Can't put the entire database to clipboard\n"
 
 
-def test_show_clipboard_whole_group(db):
+def test_show_clipboard_whole_group(db: Path) -> None:
     result = run(["show", "internet", "--clip"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Can't put the entire group to clipboard\n"
 
 
-def test_show_group(db):
+def test_show_group(db: Path) -> None:
     result = run(["show", "internet"])
     assert result.output == dedent(
         """\
@@ -76,7 +78,7 @@ def test_show_group(db):
     )
 
 
-def test_show_group_with_trailing_slash(db):
+def test_show_group_with_trailing_slash(db: Path) -> None:
     result = run(["show", "internet/"])
     assert result.output == dedent(
         """\
@@ -90,7 +92,7 @@ def test_show_group_with_trailing_slash(db):
     )
 
 
-def test_show_color(db, editor):
+def test_show_color(db: Path, editor: Callable) -> None:
     # Insert a new entry with a list
     editor(
         updated=dedent(

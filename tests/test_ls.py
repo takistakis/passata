@@ -17,12 +17,13 @@
 
 """Tests for passata ls."""
 
+from pathlib import Path
 from textwrap import dedent
 
 from tests.helpers import run
 
 
-def test_ls_db(db):
+def test_ls_db(db: Path) -> None:
     result = run(["ls"])
     assert result.output == dedent(
         """\
@@ -33,7 +34,7 @@ def test_ls_db(db):
     )
 
 
-def test_ls_group(db):
+def test_ls_group(db: Path) -> None:
     result = run(["ls", "internet"])
     assert result.output == dedent(
         """\
@@ -43,7 +44,7 @@ def test_ls_group(db):
     )
 
 
-def test_ls_no_tree(db):
+def test_ls_no_tree(db: Path) -> None:
     result = run(["ls", "--no-tree"])
     assert result.output == dedent(
         """\
@@ -53,7 +54,7 @@ def test_ls_no_tree(db):
     )
 
 
-def test_ls_nonexistent_group(db):
+def test_ls_nonexistent_group(db: Path) -> None:
     result = run(["ls", "nonexistent"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "nonexistent not found\n"
