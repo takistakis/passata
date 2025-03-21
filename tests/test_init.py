@@ -18,21 +18,23 @@
 """Tests for passata init."""
 
 import os.path
+from pathlib import Path
 from textwrap import dedent
 
 import pytest
+from pytest import MonkeyPatch
 
 import passata
 from tests.helpers import run
 
 
 @pytest.fixture
-def cryptopatch(monkeypatch):
+def cryptopatch(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(passata.DB, "encrypt", lambda s, x, g: x)
     monkeypatch.setattr(passata.DB, "decrypt", lambda s, x: open(x).read())
 
 
-def assert_db_full():
+def assert_db_full() -> None:
     result = run(["ls"])
     assert result.exit_code == 0
     assert result.exception is None
@@ -45,16 +47,16 @@ def assert_db_full():
     )
 
 
-def assert_db_empty():
+def assert_db_empty() -> None:
     result = run(["ls"])
     assert result.exit_code == 0
     assert result.exception is None
     assert result.output == ""
 
 
-def test_command_uninitialized(tmpdir, cryptopatch):
-    confpath = tmpdir.join("config.yml")
-    dbpath = tmpdir.join("passata.db")
+def test_command_uninitialized(tmp_path: Path, cryptopatch: None) -> None:
+    confpath = tmp_path / "config.yml"
+    dbpath = tmp_path / "passata.db"
 
     result = run(["--config", str(confpath), "ls"])
     assert isinstance(result.exception, SystemExit)
@@ -62,9 +64,9 @@ def test_command_uninitialized(tmpdir, cryptopatch):
     assert not os.path.isfile(str(dbpath))
 
 
-def test_init_uninitialized(tmpdir, cryptopatch):
-    confpath = tmpdir.join("config.yml")
-    dbpath = tmpdir.join("passata.db")
+def test_init_uninitialized(tmp_path: Path, cryptopatch: None) -> None:
+    confpath = tmp_path / "config.yml"
+    dbpath = tmp_path / "passata.db"
 
     # Initialize. It should not ask for confirmation.
     gpg_id = "mail@mail.com"
@@ -80,7 +82,7 @@ def test_init_uninitialized(tmpdir, cryptopatch):
     assert result.exception is None
     assert result.output == ""
     assert os.path.isfile(str(dbpath))
-    contents = confpath.read()
+    contents = confpath.read_text()
     assert f"database: {dbpath}" in contents
     assert f"gpg_id: {gpg_id}" in contents
 
@@ -91,14 +93,14 @@ def test_init_uninitialized(tmpdir, cryptopatch):
     assert result.output == ""
 
 
-def test_command_initialized_deleted_db(db):
+def test_command_initialized_deleted_db(db: Path) -> None:
     os.unlink(str(db))
     result = run(["ls"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == f"Database file ({db}) does not exist\n"
 
 
-def test_init_initialized_do_not_confirm(db):
+def test_init_initialized_do_not_confirm(db: Path) -> None:
     confpath = os.environ["PASSATA_CONFIG_PATH"]
 
     assert_db_full()
@@ -122,7 +124,7 @@ def test_init_initialized_do_not_confirm(db):
     assert_db_full()
 
 
-def test_init_initialized_confirm_only_config(db):
+def test_init_initialized_confirm_only_config(db: Path) -> None:
     confpath = os.environ["PASSATA_CONFIG_PATH"]
 
     assert_db_full()
@@ -148,7 +150,7 @@ def test_init_initialized_confirm_only_config(db):
     assert_db_full()
 
 
-def test_init_initialized_confirm_all(db, monkeypatch):
+def test_init_initialized_confirm_all(db: Path, monkeypatch: MonkeyPatch) -> None:
     confpath = os.environ["PASSATA_CONFIG_PATH"]
 
     assert_db_full()

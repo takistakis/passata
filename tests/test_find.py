@@ -17,12 +17,14 @@
 
 """Tests for passata find."""
 
+from pathlib import Path
 from textwrap import dedent
+from typing import Callable
 
 from tests.helpers import clipboard, run
 
 
-def test_find(db):
+def test_find(db: Path) -> None:
     result = run(["find", "red"])
     assert result.output == dedent(
         """\
@@ -32,7 +34,7 @@ def test_find(db):
     )
 
 
-def test_find_multiple(db):
+def test_find_multiple(db: Path) -> None:
     result = run(["find", "red", "git"])
     assert result.output == dedent(
         """\
@@ -43,7 +45,7 @@ def test_find_multiple(db):
     )
 
 
-def test_find_multiple_clip(db):
+def test_find_multiple_clip(db: Path) -> None:
     result = run(["find", "red", "git", "--clip"])
     assert result.output == dedent(
         """\
@@ -57,7 +59,7 @@ def test_find_multiple_clip(db):
     assert clipboard() == "gh"
 
 
-def test_find_show(db):
+def test_find_show(db: Path) -> None:
     result = run(["find", "red", "--print"])
     assert result.output == dedent(
         """\
@@ -69,12 +71,12 @@ def test_find_show(db):
     )
 
 
-def test_find_no_results(db):
+def test_find_no_results(db: Path) -> None:
     result = run(["find", "asdf"])
     assert result.output == ""
 
 
-def test_find_in_keyword(db, editor):
+def test_find_in_keyword(db: Path, editor: Callable) -> None:
     editor(
         updated=dedent(
             """
@@ -98,7 +100,7 @@ def test_find_in_keyword(db, editor):
     )
 
 
-def test_find_show_in_keyword(db, editor):
+def test_find_show_in_keyword(db: Path, editor: Callable) -> None:
     editor(
         updated=dedent(
             """\

@@ -20,11 +20,13 @@
 from textwrap import dedent
 
 import click
+from pytest import MonkeyPatch
 
+from passata import Path
 from tests.helpers import read, run
 
 
-def test_mv_entry_to_entry(db):
+def test_mv_entry_to_entry(db: Path) -> None:
     result = run(["mv", "internet/reddit", "internet/rdt"])
     assert result.exit_code == 0
     assert result.exception is None
@@ -41,7 +43,7 @@ def test_mv_entry_to_entry(db):
     )
 
 
-def test_mv_entry_to_group(db):
+def test_mv_entry_to_group(db: Path) -> None:
     run(["mv", "internet/reddit", "new"])
     assert read(db) == dedent(
         """\
@@ -57,13 +59,13 @@ def test_mv_entry_to_group(db):
     )
 
 
-def test_mv_entries_to_entry(db):
+def test_mv_entries_to_entry(db: Path) -> None:
     result = run(["mv", "internet/reddit", "internet/github", "new/new"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "new/new is not a group\n"
 
 
-def test_mv_entries_to_group(db):
+def test_mv_entries_to_group(db: Path) -> None:
     run(["mv", "internet/reddit", "internet/github", "new"])
     assert read(db) == dedent(
         """\
@@ -78,7 +80,7 @@ def test_mv_entries_to_group(db):
     )
 
 
-def test_mv_group_to_group(db):
+def test_mv_group_to_group(db: Path) -> None:
     run(["mv", "internet", "test"])
     assert read(db) == dedent(
         """\
@@ -93,35 +95,34 @@ def test_mv_group_to_group(db):
     )
 
 
-def test_mv_group_to_entry(db):
+def test_mv_group_to_entry(db: Path) -> None:
     result = run(["mv", "internet", "internet/github"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/github is not a group\n"
 
 
-def test_mv_nonexistent_entry(db):
+def test_mv_nonexistent_entry(db: Path) -> None:
     result = run(["mv", "internet/nonexistent", "group"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/nonexistent not found\n"
 
 
-def test_mv_nonexistent_group(db):
+def test_mv_nonexistent_group(db: Path) -> None:
     result = run(["mv", "nonexistent", "group"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "nonexistent not found\n"
 
 
-def test_mv_group_to_existing_group(db):
+def test_mv_group_to_existing_group(db: Path) -> None:
     run(["insert", "group/test", "--password=pass"])
     result = run(["mv", "group", "internet"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet already exists\n"
 
 
-def test_mv_overwrite(monkeypatch, db):
-    monkeypatch.setattr(click, "confirm", lambda m: confirm)
+def test_mv_overwrite(monkeypatch: MonkeyPatch, db: Path) -> None:
+    monkeypatch.setattr(click, "confirm", lambda m: False)
 
-    confirm = False
     run(["mv", "internet/reddit", "internet/github"])
 
     assert read(db) == dedent(
@@ -136,7 +137,8 @@ def test_mv_overwrite(monkeypatch, db):
         """
     )
 
-    confirm = True
+    monkeypatch.setattr(click, "confirm", lambda m: True)
+
     run(["mv", "internet/reddit", "internet/github"])
 
     assert read(db) == dedent(

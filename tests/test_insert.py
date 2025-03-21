@@ -17,20 +17,23 @@
 
 """Tests for passata insert."""
 
+from pathlib import Path
 from textwrap import dedent
+from typing import Callable
 
 import click
+from pytest import MonkeyPatch
 
 from tests.helpers import read, run
 
 
-def test_insert_to_group(db):
+def test_insert_to_group(db: Path) -> None:
     result = run(["insert", "group", "--password=pass"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "group is a group\n"
 
 
-def test_insert_entry(db):
+def test_insert_entry(db: Path) -> None:
     run(["insert", "group/test", "--password=pass"])
     assert read(db) == dedent(
         """\
@@ -48,7 +51,7 @@ def test_insert_entry(db):
     )
 
 
-def test_insert_force_update(db):
+def test_insert_force_update(db: Path) -> None:
     run(["insert", "internet/reddit", "--force", "--password=newpass"])
     assert read(db) == dedent(
         """\
@@ -64,9 +67,8 @@ def test_insert_force_update(db):
     )
 
 
-def test_insert_confirm_update(monkeypatch, db):
-    monkeypatch.setattr(click, "confirm", lambda m: confirm)
-    confirm = True
+def test_insert_confirm_update(monkeypatch: MonkeyPatch, db: Path) -> None:
+    monkeypatch.setattr(click, "confirm", lambda m: True)
     run(["insert", "internet/reddit", "--password=newpass"])
     assert read(db) == dedent(
         """\
@@ -82,9 +84,8 @@ def test_insert_confirm_update(monkeypatch, db):
     )
 
 
-def test_insert_do_not_confirm_update(monkeypatch, db):
-    monkeypatch.setattr(click, "confirm", lambda m: confirm)
-    confirm = False
+def test_insert_do_not_confirm_update(monkeypatch: MonkeyPatch, db: Path) -> None:
+    monkeypatch.setattr(click, "confirm", lambda m: False)
     result = run(["insert", "internet/reddit", "--password=newpass"])
     assert result.exception is None
     assert read(db) == dedent(
@@ -100,7 +101,7 @@ def test_insert_do_not_confirm_update(monkeypatch, db):
     )
 
 
-def test_insert_no_password_no_backup(db, editor):
+def test_insert_no_password_no_backup(db: Path, editor: Callable) -> None:
     editor(updated="username: user\n")
     run(["edit", "group/test"])
     run(["insert", "group/test", "--password=pass"])
@@ -121,7 +122,7 @@ def test_insert_no_password_no_backup(db, editor):
     )
 
 
-def test_insert_sort(db):
+def test_insert_sort(db: Path) -> None:
     run(["insert", "internet/asdf", "--password=pass"])
     assert read(db) == dedent(
         """\
