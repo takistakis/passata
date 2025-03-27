@@ -1,11 +1,11 @@
 # passata
 
-A simple password manager, inspired by [pass].
+A simple password manager, inspired by [pass] for Linux and macOS.
 
 Supports a subset of pass's commands and options and unlike pass, all
 passwords are stored in a single (gpg encrypted) file. It also has the
 [keepassx]-like ability to automatically type passwords based on the
-active window's title.
+active window's title. Autotyping currently only works on Linux.
 
 ## Installation
 
@@ -17,16 +17,31 @@ Requirements:
 
 For example for Arch Linux run:
 
-`# pacman -S python-click python-yaml python-watchdog gnupg xdotool
-dmenu libnotify xsel`
+```bash
+pacman -S python-click python-yaml python-watchdog gnupg xdotool dmenu libnotify xsel
+```
 
-Install passata itself using `setup.py`. Note that doing so might make
-startup too slow and cause a noticeable latency on autotyping. You may
-want to just put `passata.py` to `$PATH` instead.
+On macOS:
 
-If you want to use zsh completion, you can copy `_passata` to a
-directory in `$fpath`. `/usr/local/share/zsh/site-functions/` will
-probably do.
+```bash
+pip3 install --break-system-packages --upgrade --user click pyyaml watchdog
+```
+
+Install passata itself by running `sudo make install`.
+
+## Zsh completion
+
+Installing passata using the provided Makefile will also install the
+zsh completion script.
+
+On macOS, the zsh completion of the passata entries, doesn't work with
+the default pientnry program. To fix this you can install pinentry-mac
+with `brew install pinentry-mac` and add the following to
+`.gnupg/gpg-agent.conf`:
+
+    pinentry-program /opt/homebrew/bin/pinentry-mac
+
+Then restart the gpg-agent with `gpgconf --kill gpg-agent`.
 
 ## Usage
 
@@ -36,9 +51,10 @@ probably do.
       A simple password manager, inspired by pass.
 
     Options:
-      --config PATH  Path of the configuration file.
-      --version      Show the version and exit.
-      --help         Show this message and exit.
+      --config FILE         Path of the configuration file.
+      --color / --no-color  Colorize the output.
+      --version             Show the version and exit.
+      -h, --help            Show this message and exit.
 
     Commands:
       autotype  Type login credentials.
@@ -55,7 +71,7 @@ probably do.
 
 See `passata <command> --help` for more info on a specific command.
 
-## Autotype
+## Autotype (Linux only)
 
 By running `passata autotype`, passata tries to find the entry that
 matches the active window's title. Specifically it looks for entries
