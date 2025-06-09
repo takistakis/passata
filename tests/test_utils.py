@@ -42,7 +42,7 @@ def test_command_not_found() -> None:
 def background_lock(db: Path) -> None:
     # Assign the lock to a variable to keep it in scope and prevent the file
     # from closing.
-    lock = passata.lock_file(str(db))  # noqa
+    lock = passata.lock_file(db)  # noqa
     time.sleep(1)
 
 
@@ -67,10 +67,10 @@ def test_lock(monkeypatch: MonkeyPatch, db: Path) -> None:
         # The file is normally unlocked and deleted when the
         # program exits (see: atexit), which hasn't happened yet.
         # The first time we call unlock_file, we explicitly unlock it.
-        passata.unlock_file(str(db))
+        passata.unlock_file(db)
         # The second, we do nothing but no error is raised
         # either, because we ignore any FileNotFoundError.
-        passata.unlock_file(str(db))
+        passata.unlock_file(db)
     except Exception as e:
         pytest.fail(f"unlock_file: {e}")
 
@@ -99,7 +99,7 @@ def test_default_gpg_id(monkeypatch: MonkeyPatch) -> None:
 
 
 def test_keywords(db: Path) -> None:
-    database = passata.DB(str(db))
+    database = passata.DB(db)
 
     # The `keywords` field is empty
     database.put(

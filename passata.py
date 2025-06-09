@@ -33,6 +33,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Iterator, Sequence, TextIO
 
@@ -118,46 +119,39 @@ def die(message: str) -> None:
     sys.exit(1)
 
 
-def lock_file(path: str | Path) -> TextIO:
+def lock_file(path: Path) -> TextIO:
     """Open and lock a temporary file associated with `path`.
 
-    The file will be deleted when the program exits.
+    The lock file is deleted when the program exits.
 
-    By locking the database, we can assure that only one passata
-    process that is executing a database modifying command, can be
-    running at a time. Read-only commands should not acquire the lock.
+    Locking ensures only one passata process can modify the database at a time.
+    Read-only commands should not acquire the lock.
     """
     # Don't lock the file itself because the lock would get lost on
     # write, and if we're editing, it could be written multiple times.
-    lockpath = f"{path}.lock"
+    lockpath = path.with_suffix(".lock")
 
-    # Open with 'a' (i.e. append) to prevent truncation
+    # Open with 'a' (append) to prevent truncation
     lock = open(lockpath, "a", encoding="utf-8")
     try:
         fcntl.lockf(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except IOError:
+    except BlockingIOError:
         sys.exit("Another passata process is editing the database")
 
     atexit.register(unlock_file, path)
 
     # Register the lock file's file descriptor to prevent it from closing.
-    # If there is no current context the caller is responsible to keep the lock
-    # alive as long as needed.
-    try:
+    # If there is no current context, the caller must keep the lock alive.
+    with suppress(RuntimeError):
         click.get_current_context().obj["_lock"] = lock
-    except RuntimeError:
-        pass
 
     return lock
 
 
-def unlock_file(path: str | Path) -> None:
+def unlock_file(path: Path) -> None:
     """Remove the lock file, which also releases the lock."""
-    lockpath = f"{path}.lock"
-    try:
-        os.unlink(lockpath)
-    except FileNotFoundError:
-        pass
+    lockpath = path.with_suffix(".lock")
+    lockpath.unlink(missing_ok=True)
 
 
 def schedule_clear_clipboard(timeout: int) -> None:
@@ -284,13 +278,13 @@ class DB:
 
     def __init__(
         self,
-        path: str | None,
+        path: Path | None,
         pre_read_hook: Path | None = None,
         post_write_hook: Path | None = None,
     ):
         self.db: Database = {}
         self.data: str | None = None
-        self.path: str | None = path
+        self.path: Path | None = path
         self.pre_read_hook: Path | None = pre_read_hook
         self.post_write_hook: Path | None = post_write_hook
         self.registered_post_write_hook: bool = False
@@ -305,9 +299,9 @@ class DB:
         yield from self.db
 
     @staticmethod
-    def decrypt(path: str) -> str:  # pragma: no cover
+    def decrypt(path: Path) -> str:  # pragma: no cover
         """Decrypt the contents of the given file using gpg."""
-        return out(["gpg", "-d", path])
+        return out(["gpg", "-d", str(path)])
 
     def read(self, lock: bool = False) -> None:
         """Return the database as a plaintext string."""
@@ -561,12 +555,12 @@ def cli(ctx: click.Context, config: str, color: bool | None) -> None:
         path = confdir / "hooks" / "post-write"
         post_write_hook = path if path.is_file() else None
 
-        dbpath = config_data["database"]
-        if not isinstance(dbpath, str):
-            sys.exit(f"Value for database ({dbpath}) is not a valid string")
+        database = config_data["database"]
+        if not isinstance(database, str):
+            sys.exit(f"Value for database ({database}) is not a valid string")
 
         db = DB(
-            path=os.path.expanduser(dbpath),
+            path=Path(database).expanduser(),
             pre_read_hook=pre_read_hook,
             post_write_hook=post_write_hook,
         )
@@ -598,10 +592,10 @@ def cli(ctx: click.Context, config: str, color: bool | None) -> None:
 @click.pass_obj
 def init(obj: Obj, force: bool, gpg_id: str, path: str) -> None:
     """Initialize password database."""
-    dbpath = os.path.abspath(os.path.expanduser(path))
+    dbpath = Path(path).expanduser().absolute()
     lock_file(dbpath)
     confpath = obj["_confpath"]
-    config = {"database": dbpath, "gpg_id": gpg_id}
+    config = {"database": str(dbpath), "gpg_id": gpg_id}
     write_config(confpath, config, force)
     obj.update(config)
     db = DB(dbpath)
