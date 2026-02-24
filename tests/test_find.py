@@ -17,9 +17,9 @@
 
 """Tests for passata find."""
 
+from collections.abc import Callable
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable
 
 from tests.helpers import clipboard, run
 
