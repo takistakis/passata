@@ -19,8 +19,8 @@
 
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from click.testing import CliRunner, Result
 
@@ -31,9 +31,9 @@ def read(dbpath: Path) -> str:
     return dbpath.open().read()
 
 
-def run(args: Sequence[str], input: str | None = None) -> Result:
+def run(args: Sequence[str], input_: str | None = None) -> Result:
     runner = CliRunner()
-    return runner.invoke(passata.cli, args, input)
+    return runner.invoke(passata.cli, args, input_)
 
 
 def clipboard() -> str:

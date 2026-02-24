@@ -14,11 +14,10 @@ uninstall:
 	rm -f $(PREFIX)/share/zsh/site-functions/_passata
 
 test:
-	flake8 passata.py tests/
-	isort passata.py tests/
+	ruff format *.py tests
+	ruff check --fix *.py tests
 	coverage run -m pytest
 	coverage report
 	mypy passata.py tests/ --disallow-untyped-defs
-	black *.py tests
 
 .PHONY: install uninstall test
