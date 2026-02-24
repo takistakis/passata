@@ -603,7 +603,7 @@ def init(obj: Obj, force: bool, gpg_id: str, path: Path) -> None:
     db.write(gpg_id, force)
 
 
-@cli.command("config")
+@cli.command()
 @click.option(
     "-e",
     "--editor",
@@ -611,9 +611,9 @@ def init(obj: Obj, force: bool, gpg_id: str, path: Path) -> None:
     help="Which editor to use.",
 )
 @click.pass_obj
-def config_(obj: Obj, editor: str) -> None:
+def config(obj: Obj, editor: str) -> None:
     """Edit the configuration file."""
-    click.edit(filename=obj["_confpath"], editor=editor)
+    click.edit(filename=str(obj["_confpath"]), editor=editor)
 
 
 @cli.command()
