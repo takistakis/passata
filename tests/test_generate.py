@@ -18,9 +18,10 @@
 """Tests for passata generate."""
 
 import sys
+from collections.abc import Generator
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Generator
+from typing import Any
 
 import click
 import pytest
