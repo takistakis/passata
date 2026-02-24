@@ -17,34 +17,31 @@
 
 """Tests for passata init."""
 
-import os.path
+import os
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
-from pytest import MonkeyPatch
 
 import passata
 from tests.helpers import run
 
 
 @pytest.fixture
-def cryptopatch(monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setattr(passata.DB, "encrypt", lambda s, x, g: x)
-    monkeypatch.setattr(passata.DB, "decrypt", lambda s, x: open(x).read())
+def cryptopatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(passata.DB, "encrypt", lambda _, x, __: x)
+    monkeypatch.setattr(passata.DB, "decrypt", lambda _, x: Path(x).read_text())
 
 
 def assert_db_full() -> None:
     result = run(["ls"])
     assert result.exit_code == 0
     assert result.exception is None
-    assert result.output == dedent(
-        """\
+    assert result.output == dedent("""\
         internet
         ├── github
         └── reddit
-        """
-    )
+    """)
 
 
 def assert_db_empty() -> None:
@@ -54,17 +51,19 @@ def assert_db_empty() -> None:
     assert result.output == ""
 
 
-def test_command_uninitialized(tmp_path: Path, cryptopatch: None) -> None:
+@pytest.mark.usefixtures("cryptopatch")
+def test_command_uninitialized(tmp_path: Path) -> None:
     confpath = tmp_path / "config.yml"
     dbpath = tmp_path / "passata.db"
 
     result = run(["--config", str(confpath), "ls"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "Run `passata init` first\n"
-    assert not os.path.isfile(str(dbpath))
+    assert not dbpath.is_file()
 
 
-def test_init_uninitialized(tmp_path: Path, cryptopatch: None) -> None:
+@pytest.mark.usefixtures("cryptopatch")
+def test_init_uninitialized(tmp_path: Path) -> None:
     confpath = tmp_path / "config.yml"
     dbpath = tmp_path / "passata.db"
 
@@ -76,12 +75,12 @@ def test_init_uninitialized(tmp_path: Path, cryptopatch: None) -> None:
             "init",
             f"--gpg-id={gpg_id}",
             f"--path={dbpath}",
-        ]
+        ],
     )
     assert result.exit_code == 0
     assert result.exception is None
     assert result.output == ""
-    assert os.path.isfile(str(dbpath))
+    assert dbpath.is_file()
     contents = confpath.read_text()
     assert f"database: {dbpath}" in contents
     assert f"gpg_id: {gpg_id}" in contents
@@ -94,7 +93,7 @@ def test_init_uninitialized(tmp_path: Path, cryptopatch: None) -> None:
 
 
 def test_command_initialized_deleted_db(db: Path) -> None:
-    os.unlink(str(db))
+    db.unlink()
     result = run(["ls"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == f"Database file ({db}) does not exist\n"
@@ -112,12 +111,11 @@ def test_init_initialized_do_not_confirm(db: Path) -> None:
         f"--gpg-id={gpg_id}",
         f"--path={db}",
     ]
-    result = run(cmd, input="n\n")
+    result = run(cmd, input_="n\n")
     assert result.exit_code == 0
     assert result.exception is None
     assert result.output == f"Overwrite {confpath}? [y/N]: n\n"
-    with open(confpath) as f:
-        contents = f.read()
+    contents = Path(confpath).read_text()
     assert "gpg_id: mail@mail.com" in contents
     assert f"gpg_id: {gpg_id}" not in contents
 
@@ -136,21 +134,20 @@ def test_init_initialized_confirm_only_config(db: Path) -> None:
         f"--gpg-id={gpg_id}",
         f"--path={db}",
     ]
-    result = run(cmd, input="y\nn\n")
+    result = run(cmd, input_="y\nn\n")
     assert result.exit_code == 0
     assert result.exception is None
     assert result.output == (
-        f"Overwrite {confpath}? [y/N]: y\n" f"Overwrite {db}? [y/N]: n\n"
+        f"Overwrite {confpath}? [y/N]: y\nOverwrite {db}? [y/N]: n\n"
     )
-    with open(confpath) as f:
-        contents = f.read()
+    contents = Path(confpath).read_text()
     assert "gpg_id: mail@mail.com" not in contents
     assert f"gpg_id: {gpg_id}" in contents
 
     assert_db_full()
 
 
-def test_init_initialized_confirm_all(db: Path, monkeypatch: MonkeyPatch) -> None:
+def test_init_initialized_confirm_all(db: Path) -> None:
     confpath = os.environ["PASSATA_CONFIG_PATH"]
 
     assert_db_full()
@@ -162,14 +159,13 @@ def test_init_initialized_confirm_all(db: Path, monkeypatch: MonkeyPatch) -> Non
         f"--gpg-id={gpg_id}",
         f"--path={db}",
     ]
-    result = run(cmd, input="y\ny\n")
+    result = run(cmd, input_="y\ny\n")
     assert result.exit_code == 0
     assert result.exception is None
     assert result.output == (
-        f"Overwrite {confpath}? [y/N]: y\n" f"Overwrite {db}? [y/N]: y\n"
+        f"Overwrite {confpath}? [y/N]: y\nOverwrite {db}? [y/N]: y\n"
     )
-    with open(confpath) as f:
-        contents = f.read()
+    contents = Path(confpath).read_text()
     assert "gpg_id: mail@mail.com" not in contents
     assert f"gpg_id: {gpg_id}" in contents
 
