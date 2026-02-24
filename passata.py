@@ -33,9 +33,10 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Iterator, Sequence
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Iterator, Sequence, TextIO
+from typing import Any, TextIO
 
 import click
 import watchdog.events
@@ -72,7 +73,7 @@ def call(
             stdout=stdout,
             stderr=subprocess.DEVNULL,
             check=True,
-            universal_newlines=True,
+            text=True,
         ).stdout
     except subprocess.CalledProcessError as e:
         sys.exit(str(e))

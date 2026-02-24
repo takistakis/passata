@@ -18,9 +18,9 @@
 """The passata test suite conftest file."""
 
 import os
+from collections.abc import Callable, Generator
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable, Generator
 
 import click
 import pytest

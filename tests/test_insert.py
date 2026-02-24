@@ -17,9 +17,9 @@
 
 """Tests for passata insert."""
 
+from collections.abc import Callable
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable
 
 import click
 from pytest import MonkeyPatch

@@ -19,8 +19,8 @@
 
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from click.testing import CliRunner, Result
 

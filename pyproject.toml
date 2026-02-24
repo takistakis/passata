@@ -21,6 +21,7 @@ isort = "*"
 mypy = "*"
 pytest = "*"
 types-pyyaml = "*"
+pyupgrade = "*"
 
 [tool.isort]
 profile = "black"
