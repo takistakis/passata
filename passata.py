@@ -921,6 +921,7 @@ def edit(obj: Obj, name: str, editor: str) -> None:
 
         def __init__(self, path: str) -> None:
             self.path = path
+            self.last_content: str | None = None
             super().__init__(
                 patterns=["*.yml"],
                 ignore_directories=True,
@@ -928,11 +929,17 @@ def edit(obj: Obj, name: str, editor: str) -> None:
             )
 
         def on_modified(self, event: watchdog.events.FileSystemEvent) -> None:
-            if self.path not in event.src_path:
+            src_path = os.fsdecode(event.src_path)
+            if self.path not in src_path:
                 return
 
-            with open(event.src_path, encoding="utf-8") as f:
+            with open(src_path, encoding="utf-8") as f:
                 updated = f.read()
+
+            if updated == self.last_content:
+                return
+
+            self.last_content = updated
 
             # If the file is empty or contains invalid yaml,
             # ignore it. Once the editor exits, we will
@@ -960,6 +967,7 @@ def edit(obj: Obj, name: str, editor: str) -> None:
 
     path = os.path.dirname(temp.name)
     event_handler = EventHandler(temp.name)
+    event_handler.last_content = text
     observer = watchdog.observers.Observer()
     observer.schedule(event_handler, path=path, recursive=True)
     observer.start()
@@ -976,6 +984,9 @@ def edit(obj: Obj, name: str, editor: str) -> None:
         updated = f.read()
 
     temp.close()
+
+    if updated == text:
+        return
 
     try:
         data = to_dict(updated)
