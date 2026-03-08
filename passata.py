@@ -509,6 +509,10 @@ class DB:
                 if not isinstance(entry, dict):
                     sys.exit(f"Entry '{entryname}' is not a dict")
 
+    def is_empty(self) -> bool:
+        """Return whether the database is empty."""
+        return not self.db
+
 
 # Commands
 @click.group(
@@ -672,13 +676,19 @@ def find(
     else:
         matches.ls(no_tree=no_tree)
 
-    if matches.db and clip:
-        groupname, entryname = next(iter(matches))
-        first_match = matches.get(f"{groupname}/{entryname}")
-        assert first_match is not None
-        to_clipboard(first_match["password"], timeout)
-        click.echo()
-        click.echo(f"Copied password of {groupname}/{entryname} to clipboard.")
+    if matches.is_empty() or not clip:
+        return
+
+    groupname, entryname = next(iter(matches))
+    first_match = matches.get(f"{groupname}/{entryname}")
+    assert first_match is not None
+    password = first_match.get("password")
+    if password is None:
+        sys.exit(f"{groupname}/{entryname} does not have a password")
+
+    to_clipboard(str(password), timeout)
+    click.echo()
+    click.echo(f"Copied password of {groupname}/{entryname} to clipboard.")
 
 
 @cli.command(short_help="Show entry, group or the whole database.")
@@ -714,7 +724,12 @@ def show(obj: Obj, name: str | None, clip: bool, timeout: int) -> None:
             sys.exit("Can't put the entire database to clipboard")
         if isgroup(name):
             sys.exit("Can't put the entire group to clipboard")
-        to_clipboard(entry["password"], timeout=timeout)
+
+        password = entry.get("password")
+        if password is None:
+            sys.exit(f"{name} does not have a password")
+
+        to_clipboard(str(password), timeout=timeout)
     else:
         echo(to_string(entry).strip())
 
@@ -736,7 +751,7 @@ def do_insert(obj: Obj, name: str, password: str, force: bool) -> str | None:
     else:
         if "password" in entry:
             confirm(f"Overwrite {name}?", force)
-            old_password = entry["password"]
+            old_password = str(entry["password"])
             entry["old_password"] = old_password
         entry["password"] = password
 
@@ -897,7 +912,7 @@ def generate(
         return
 
     if old_password is not None:
-        to_clipboard(old_password, timeout=0)
+        to_clipboard(str(old_password), timeout=0)
         click.echo("Copied old password to clipboard.")
         click.pause()
 
