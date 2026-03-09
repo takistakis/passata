@@ -37,7 +37,7 @@ SYMBOLS = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"""
 
 def test_generate_password_length_no_symbols() -> None:
     password = passata.generate_password(
-        length=10, entropy=None, symbols=False, words=False, wordpath="", force=False
+        length=10, entropy=None, symbols=False, words=False, wordpath=None, force=False
     )
 
     assert len(password) == 10
@@ -47,7 +47,7 @@ def test_generate_password_length_no_symbols() -> None:
 
 def test_generate_password_length_symbols() -> None:
     password = passata.generate_password(
-        length=17, entropy=None, symbols=True, words=False, wordpath="", force=False
+        length=17, entropy=None, symbols=True, words=False, wordpath=None, force=False
     )
 
     assert len(password) == 17
@@ -60,7 +60,7 @@ def test_generate_password_entropy_no_symbols() -> None:
         entropy=128,
         symbols=False,
         words=False,
-        wordpath="",
+        wordpath=None,
         force=False,
     )
     assert len(password) == 22
@@ -72,7 +72,7 @@ def test_generate_password_entropy_symbols() -> None:
         entropy=128,
         symbols=True,
         words=False,
-        wordpath="",
+        wordpath=None,
         force=False,
     )
     assert len(password) == 20
@@ -87,13 +87,13 @@ def test_generate_password_short(monkeypatch: MonkeyPatch) -> None:
             entropy=None,
             symbols=True,
             words=False,
-            wordpath="",
+            wordpath=None,
             force=False,
         )
     # Confirm
     monkeypatch.setattr(click, "confirm", lambda _: True)
     password = passata.generate_password(
-        length=4, entropy=None, symbols=True, words=False, wordpath="", force=False
+        length=4, entropy=None, symbols=True, words=False, wordpath=None, force=False
     )
     assert len(password) == 4
 
@@ -102,13 +102,12 @@ def test_generate_passphrase(tmp_path: Path) -> None:
     words = ["asdf", "test", "piou"]
     wordpath = tmp_path / "words"
     wordpath.write_text("\n".join(words))
-    path = str(wordpath)
     passphrase = passata.generate_password(
         length=5,
         entropy=None,
         symbols=True,
         words=True,
-        wordpath=path,
+        wordpath=wordpath,
         force=True,
     )
     passphrase_parts = passphrase.split()
@@ -118,14 +117,13 @@ def test_generate_passphrase(tmp_path: Path) -> None:
 
 def test_generate_passphrase_file_not_found(tmp_path: Path) -> None:
     wordpath = tmp_path / "words"
-    path = str(wordpath)
     with pytest.raises(SystemExit):
         passata.generate_password(
             length=5,
             entropy=None,
             symbols=True,
             words=True,
-            wordpath=path,
+            wordpath=wordpath,
             force=True,
         )
 
@@ -273,7 +271,7 @@ class TestGetWordpath:
         """
         Test that the function returns the provided wordpath if it's not None.
         """
-        wordpath = "/path/to/wordlist.txt"
+        wordpath = Path("/path/to/wordlist.txt")
         assert passata.get_wordpath(wordpath) == wordpath
 
     def test_wordpath_in_directories(self, monkeypatch: MonkeyPatch) -> None:
@@ -283,9 +281,9 @@ class TestGetWordpath:
         """
         monkeypatch.setattr("os.path.exists", lambda x: True)
         wordpath = passata.get_wordpath(None)
-        assert wordpath.endswith("eff_large_wordlist.txt")
+        assert str(wordpath).endswith("eff_large_wordlist.txt")
         assert any(
-            wordpath.startswith(directory)
+            str(wordpath).startswith(directory)
             for directory in [
                 "/usr/local/share/passata",
                 "/usr/share/passata",
@@ -297,7 +295,7 @@ class TestGetWordpath:
         Test that the function exits if the wordpath is not found in any of the
         directories.
         """
-        monkeypatch.setattr("os.path.exists", lambda x: False)
+        monkeypatch.setattr("passata.Path.exists", lambda x: False)
         with pytest.raises(SystemExit) as cm:
             passata.get_wordpath(None)
 
