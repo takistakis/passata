@@ -14,10 +14,9 @@ uninstall:
 	rm -f $(PREFIX)/share/zsh/site-functions/_passata
 
 test:
-	black *.py tests
-	flake8 passata.py tests/
+	ruff format *.py tests
+	ruff check --fix *.py tests
 	pyupgrade --py310-plus passata.py tests/*.py
-	isort passata.py tests/
 	coverage run -m pytest
 	coverage report
 	coverage html

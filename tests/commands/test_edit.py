@@ -22,25 +22,26 @@ from pathlib import Path
 from textwrap import dedent
 
 import click
-from pytest import MonkeyPatch
+import pytest
 
 import passata
 from tests.helpers import read, run
 
 
-def test_edit_entry(monkeypatch: MonkeyPatch, db: Path, editor: Callable) -> None:
+def test_edit_entry(
+    monkeypatch: pytest.MonkeyPatch,
+    db: Path,
+    editor: Callable,
+) -> None:
     monkeypatch.setattr(click, "confirm", lambda _: True)
     editor(
-        updated=dedent(
-            """
-            username: sakis
-            password: yolo
-            """
-        )
+        updated=dedent("""
+        username: sakis
+        password: yolo
+    """),
     )
     run(["edit", "internet/reddit"])
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -48,24 +49,20 @@ def test_edit_entry(monkeypatch: MonkeyPatch, db: Path, editor: Callable) -> Non
           reddit:
             username: sakis
             password: yolo
-        """
-    )
+    """)
 
 
 def test_edit_new_entry_in_existing_group(db: Path, editor: Callable) -> None:
     editor(
-        updated=dedent(
-            """\
-            username: takis
-            password: secret
-            """
-        )
+        updated=dedent("""\
+        username: takis
+        password: secret
+    """),
     )
     result = run(["edit", "internet/stack overflow"])
     assert result.exit_code == 0
     assert result.exception is None
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -76,22 +73,18 @@ def test_edit_new_entry_in_existing_group(db: Path, editor: Callable) -> None:
           stack overflow:
             username: takis
             password: secret
-        """
-    )
+    """)
 
 
 def test_edit_new_entry_in_new_group(db: Path, editor: Callable) -> None:
     editor(
-        updated=dedent(
-            """\
-            username: sakis
-            password: yolo
-            """
-        )
+        updated=dedent("""\
+        username: sakis
+        password: yolo
+    """),
     )
     run(["edit", "mail/gmail"])
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -103,12 +96,13 @@ def test_edit_new_entry_in_new_group(db: Path, editor: Callable) -> None:
           gmail:
             username: sakis
             password: yolo
-        """
-    )
+    """)
 
 
 def test_edit_delete_entry(
-    monkeypatch: MonkeyPatch, db: Path, editor: Callable
+    monkeypatch: pytest.MonkeyPatch,
+    db: Path,
+    editor: Callable,
 ) -> None:
     editor(updated="")
     # Do not confirm
@@ -116,8 +110,7 @@ def test_edit_delete_entry(
     result = run(["edit", "internet/reddit"])
     assert result.exit_code == 0
     assert result.exception is None
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -125,29 +118,25 @@ def test_edit_delete_entry(
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
     passata.unlock_file(db)
     # Confirm
     monkeypatch.setattr(click, "confirm", lambda _: True)
     result = run(["edit", "internet/reddit"])
     assert result.exit_code == 0
     assert result.exception is None
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
             username: takis
-        """
-    )
+    """)
 
 
 def test_edit_delete_nonexistent_entry(db: Path, editor: Callable) -> None:
     editor(updated="")
     run(["edit", "asdf/asdf"])
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -155,41 +144,41 @@ def test_edit_delete_nonexistent_entry(db: Path, editor: Callable) -> None:
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
 
 
-def test_edit_group(monkeypatch: MonkeyPatch, db: Path, editor: Callable) -> None:
-    monkeypatch.setattr(click, "confirm", lambda m: True)
+def test_edit_group(
+    monkeypatch: pytest.MonkeyPatch,
+    db: Path,
+    editor: Callable,
+) -> None:
+    monkeypatch.setattr(click, "confirm", lambda _: True)
     editor(
-        updated=dedent(
-            """\
-            reddit:
-              username: takis
-              password: secret
-            """
-        )
+        updated=dedent("""\
+        reddit:
+          username: takis
+          password: secret
+    """),
     )
     run(["edit", "internet"])
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           reddit:
             username: takis
             password: secret
-        """
-    )
+    """)
 
 
 def test_edit_delete_group(
-    monkeypatch: MonkeyPatch, db: Path, editor: Callable
+    monkeypatch: pytest.MonkeyPatch,
+    db: Path,
+    editor: Callable,
 ) -> None:
     editor(updated="")
     # Do not confirm
-    monkeypatch.setattr(click, "confirm", lambda m: False)
+    monkeypatch.setattr(click, "confirm", lambda _: False)
     run(["edit", "internet"])
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -197,10 +186,9 @@ def test_edit_delete_group(
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
     # Confirm
-    monkeypatch.setattr(click, "confirm", lambda m: True)
+    monkeypatch.setattr(click, "confirm", lambda _: True)
     run(["edit", "internet"])
     assert read(db) == ""
 
@@ -208,8 +196,7 @@ def test_edit_delete_group(
 def test_edit_delete_nonexistent_group(db: Path, editor: Callable) -> None:
     editor(updated="")
     run(["edit", "asdf"])
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -217,56 +204,59 @@ def test_edit_delete_nonexistent_group(db: Path, editor: Callable) -> None:
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
 
 
-def test_edit_database(monkeypatch: MonkeyPatch, db: Path, editor: Callable) -> None:
-    updated = dedent(
-        """\
+def test_edit_database(
+    monkeypatch: pytest.MonkeyPatch,
+    db: Path,
+    editor: Callable,
+) -> None:
+    updated = dedent("""\
         internet:
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
     editor(updated=updated)
-    monkeypatch.setattr(click, "confirm", lambda m: True)
+    monkeypatch.setattr(click, "confirm", lambda _: True)
     run(["edit"])
     assert read(db) == updated
 
 
 def test_edit_delete_database(
-    monkeypatch: MonkeyPatch, db: Path, editor: Callable
+    monkeypatch: pytest.MonkeyPatch,
+    db: Path,
+    editor: Callable,
 ) -> None:
     original = read(db)
     editor(updated="")
     # Do not confirm
-    monkeypatch.setattr(click, "confirm", lambda m: False)
+    monkeypatch.setattr(click, "confirm", lambda _: False)
     result = run(["edit"])
     assert result.exit_code == 0
     assert result.exception is None
     assert read(db) == original
     passata.unlock_file(db)
     # Confirm
-    monkeypatch.setattr(click, "confirm", lambda m: True)
+    monkeypatch.setattr(click, "confirm", lambda _: True)
     result = run(["edit"])
     assert result.exit_code == 0
     assert result.exception is None
     assert read(db) == ""
 
 
+@pytest.mark.usefixtures("db")
 def test_edit_invalid_yaml(
-    monkeypatch: MonkeyPatch, db: Path, editor: Callable
+    monkeypatch: pytest.MonkeyPatch,
+    editor: Callable,
 ) -> None:
-    monkeypatch.setattr(click, "confirm", lambda m: True)
+    monkeypatch.setattr(click, "confirm", lambda _: True)
     editor(
-        updated=dedent(
-            """\
-            username: sakis
-            password
-            """
-        )
+        updated=dedent("""\
+        username: sakis
+        password
+    """),
     )
     result = run(["edit", "internet/reddit"])
     assert result.exit_code == 1

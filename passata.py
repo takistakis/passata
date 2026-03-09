@@ -32,11 +32,11 @@ import string
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
-from collections.abc import Iterator, Sequence
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, TextIO
+from typing import TYPE_CHECKING, Any, TextIO
 
 import click
 import watchdog.events
@@ -44,7 +44,12 @@ import watchdog.observers
 import yaml
 import yaml.scanner
 
+if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Iterator, Sequence
+
 __version__ = "0.2.0"
+
+ENTROPY_WARNING_THRESHOLD = 32
 
 
 Obj = dict[str, Any]
@@ -58,37 +63,39 @@ Database = dict[str, Group]
 def call(
     command: Path | list[str],
     stdout: int | None = None,
-    input: str | None = None,
+    input_: str | None = None,
 ) -> str:
-    """Run command, optionally passing `input` to stdin.
+    """Run command, optionally passing `input_` to stdin.
 
     By default, standard output is printed and ignored and None is returned.
     Setting stdout=subprocess.PIPE, will capture and return standard output
     instead.
     """
     try:
-        return subprocess.run(
+        result = subprocess.run(
             command,
-            input=input if input is None else str(input),
+            input=input_,
             stdout=stdout,
             stderr=subprocess.DEVNULL,
             check=True,
             text=True,
-        ).stdout
+        )
     except subprocess.CalledProcessError as e:
         sys.exit(str(e))
     except FileNotFoundError:
         path = command[0] if isinstance(command, list) else command
         sys.exit(f"Executable '{path}' not found")
+    else:
+        return result.stdout
 
 
-def out(command: list[str], input: str | None = None) -> str:
-    """Run command, optionally passing `input` to stdin, and return output.
+def out(command: list[str], input_: str | None = None) -> str:
+    """Run command, optionally passing `input_` to stdin, and return output.
 
     The output usually comes back with a trailing newline and it needs to be
     striped if not needed.
     """
-    return call(command, stdout=subprocess.PIPE, input=input)
+    return call(command, stdout=subprocess.PIPE, input_=input_)
 
 
 def echo(data: str) -> None:
@@ -158,21 +165,19 @@ def unlock_file(path: Path) -> None:
 def schedule_clear_clipboard(timeout: int) -> None:
     """Clear clipboard after timeout seconds.
 
-    Write a bash script in /tmp/ and execute it on the background.
+    Write a bash script in a temporary file and execute it in the background.
     """
-    scriptpath = "/tmp/clear-clipboard.sh"
+    script = textwrap.dedent(f"""\
+        #!/bin/bash
+        sleep {timeout}
+        echo -n '' | pbcopy
+    """)
 
-    with open(scriptpath, "w") as f:
-        f.writelines(
-            [
-                "#!/bin/bash\n",
-                "\n",
-                f"sleep {timeout}\n",
-                "echo -n '' | pbcopy\n",
-            ]
-        )
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".sh") as f:
+        f.write(script)
+        scriptpath = f.name
 
-    os.chmod(scriptpath, 0o755)
+    Path(scriptpath).chmod(0o755)
 
     subprocess.Popen(scriptpath, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -187,7 +192,7 @@ def to_clipboard(data: str, timeout: int) -> None:
         if sys.platform == "darwin"
         else ["xsel", "-i", "-b", "-t", str(timeout * 1000)]
     )
-    call(command, input=data)
+    call(command, input_=data)
 
     if sys.platform == "darwin" and timeout > 0:
         schedule_clear_clipboard(timeout)
@@ -282,7 +287,8 @@ class DB:
         path: Path | None,
         pre_read_hook: Path | None = None,
         post_write_hook: Path | None = None,
-    ):
+    ) -> None:
+        """Initialize an empty database."""
         self.db: Database = {}
         self.data: str | None = None
         self.path: Path | None = path
@@ -291,6 +297,7 @@ class DB:
         self.registered_post_write_hook: bool = False
 
     def __iter__(self) -> Iterator[tuple[str, str]]:
+        """Iterate in (group name, entry name) pairs."""
         for groupname in self.db:
             for entryname in self.db[groupname]:
                 yield groupname, entryname
@@ -308,7 +315,7 @@ class DB:
         """Return the database as a plaintext string."""
         self.execute_pre_read_hook()
         assert self.path is not None
-        if not os.path.isfile(self.path):
+        if not self.path.is_file():
             sys.exit(f"Database file ({self.path}) does not exist")
         if lock:
             lock_file(self.path)
@@ -319,26 +326,28 @@ class DB:
     @staticmethod
     def encrypt(data: str, gpg_id: str) -> str:  # pragma: no cover
         """Encrypt given text using gpg."""
-        return out(["gpg", "-ear", gpg_id], input=data)
+        return out(["gpg", "-ear", gpg_id], input_=data)
 
     def write(self, gpg_id: str, force: bool = True) -> None:
         """Write the database as an encrypted string."""
         assert self.path is not None
-        confirm_overwrite(self.path, force)
         data = to_string(self.db)
         if data == self.data:
             return
+        confirm_overwrite(self.path, force)
         encrypted = self.encrypt(data, gpg_id)
         # Write to a temporary file, make sure the data has reached the
         # disk and replace the database with the temporary file using
-        # os.replace() which is guaranteed to be an atomic operation.
+        # Path.replace() which is guaranteed to be an atomic operation.
         with tempfile.NamedTemporaryFile(
-            mode="w", dir=os.path.dirname(self.path), delete=False
+            mode="w",
+            dir=self.path.parent,
+            delete=False,
         ) as temp:
             temp.write(encrypted)
             temp.flush()
             os.fsync(temp.fileno())
-        os.replace(temp.name, self.path)
+        Path(temp.name).replace(self.path)
         self.data = data
         if not self.registered_post_write_hook:
             atexit.register(self.execute_post_write_hook)
@@ -423,15 +432,14 @@ class DB:
 
     def ls(self, groupname: str | None = None, no_tree: bool = False) -> None:
         """List entries in a tree-like format."""
-        lines = []
+        lines: list[str] = []
         if groupname:
             groupname = groupname.rstrip("/")
             if groupname not in self.groups():
                 sys.exit(f"{groupname} not found")
             group = self.get(groupname)
             assert group is not None
-            for entryname in group:
-                lines.append(entryname)
+            lines.extend(group)
         elif no_tree:
             for groupname, entryname in self:
                 lines.append(f"{groupname}/{entryname}")
@@ -441,13 +449,13 @@ class DB:
                 group = self.get(groupname)
                 assert group is not None
                 entrynames = list(group)
-                for entryname in entrynames[:-1]:
-                    lines.append(f"├── {entryname}")
+                lines.extend([f"├── {entryname}" for entryname in entrynames[:-1]])
                 lines.append(f"└── {entrynames[-1]}")
         if lines:
             echo("\n".join(lines))
 
     def find(self, names: Sequence[str]) -> DB:
+        """Find entries whose name or keywords match any of the given names."""
         names = [name.lower() for name in names]
         matches = DB(path=None)
         for groupname, entryname in self:
@@ -519,7 +527,7 @@ class DB:
     context_settings={
         "help_option_names": ["-h", "--help"],
         "max_content_width": 100,
-    }
+    },
 )
 @click.option(
     "--config",
@@ -532,7 +540,7 @@ class DB:
 @click.version_option(version=__version__)
 @click.pass_context
 def cli(ctx: click.Context, config: Path, color: bool | None) -> None:
-    """A simple password manager, inspired by pass."""
+    """A simple password manager, inspired by pass."""  # noqa: D401
     confpath = config.expanduser()
     obj: Obj = {"_confpath": confpath}
     ctx.obj = obj
@@ -550,7 +558,7 @@ def cli(ctx: click.Context, config: Path, color: bool | None) -> None:
                 key: value
                 for key, value in config_data.items()
                 if not isinstance(value, dict) and key not in cmd_config
-            }
+            },
         )
         ctx.color = color if color is not None else config_data.get("color")
         confdir = confpath.parent
@@ -599,7 +607,7 @@ def init(obj: Obj, force: bool, gpg_id: str, path: Path) -> None:
     """Initialize password database."""
     dbpath = path.expanduser().absolute()
     lock_file(dbpath)
-    confpath = obj["_confpath"]
+    confpath: Path = obj["_confpath"]
     config = {"database": str(dbpath), "gpg_id": gpg_id}
     write_config(confpath, config, force)
     obj.update(config)
@@ -817,7 +825,7 @@ def generate_password(
         assert length is not None
         entropy = length * math.log2(len(pool))
 
-    if entropy < 32:
+    if entropy < ENTROPY_WARNING_THRESHOLD:
         msg = f"Generate password with only {entropy:.3f} bits of entropy?"
         confirm(msg, force)
 
@@ -832,7 +840,10 @@ def generate_password(
 @click.option("-f", "--force", is_flag=True, help="Do not prompt for confirmation.")
 @click.option("-p/-P", "--print/--no-print", "print_", help="Print the password.")
 @click.option(
-    "-c/-C", "--clip/--no-clip", default=True, help="Copy password to clipboard."
+    "-c/-C",
+    "--clip/--no-clip",
+    default=True,
+    help="Copy password to clipboard.",
 )
 @click.option(
     "-t",
@@ -894,12 +905,15 @@ def generate(
 
     # Entropy takes precedence over length but cli params take precedence over
     # config.
-    # TODO: Add test
     entropy_source = ctx.get_parameter_source("entropy")
     length_source = ctx.get_parameter_source("length")
-    if entropy_source is not None and length_source is not None:
-        if entropy_source.name == "DEFAULT_MAP" and length_source.name == "COMMANDLINE":
-            entropy = None
+    if (
+        entropy_source is not None
+        and length_source is not None
+        and entropy_source.name == "DEFAULT_MAP"
+        and length_source.name == "COMMANDLINE"
+    ):
+        entropy = None
 
     password = generate_password(length, entropy, symbols, words, wordpath, force)
 
@@ -949,9 +963,7 @@ def edit(obj: Obj, name: str, editor: str) -> None:
             if self.path not in src_path:
                 return
 
-            with open(src_path, encoding="utf-8") as f:
-                updated = f.read()
-
+            updated = Path(src_path).read_text()
             if updated == self.last_content:
                 return
 
@@ -977,15 +989,16 @@ def edit(obj: Obj, name: str, editor: str) -> None:
     comment = name or "passata database"
     text = f"# {comment}\n{original}"
 
-    temp = tempfile.NamedTemporaryFile(mode="w+", prefix="passata-", suffix=".yml")
+    temp = tempfile.NamedTemporaryFile(mode="w+", prefix="passata-", suffix=".yml")  # noqa: SIM115
     temp.write(text)
     temp.flush()
 
-    path = os.path.dirname(temp.name)
+    temppath = Path(temp.name)
+    directory = temppath.parent
     event_handler = EventHandler(temp.name)
     event_handler.last_content = text
     observer = watchdog.observers.Observer()
-    observer.schedule(event_handler, path=path, recursive=True)
+    observer.schedule(event_handler, path=str(directory), recursive=True)
     observer.start()
 
     click.edit(filename=temp.name, editor=editor)
@@ -996,9 +1009,7 @@ def edit(obj: Obj, name: str, editor: str) -> None:
     # Read the file one last time. It may have already been read
     # in the handler, but it's not guaranteed. If for example the
     # user saved and exited the editor, there is a race condition.
-    with open(temp.name, encoding="utf-8") as f:
-        updated = f.read()
-
+    updated = temppath.read_text()
     temp.close()
 
     if updated == text:
@@ -1066,9 +1077,7 @@ def mv(obj: Obj, source: str, dest: str, force: bool) -> None:
                 sys.exit(f"{name} not found")
             _, entryname = split(name)
             assert entryname is not None
-            # os.path.join() because using '/'.join('groupname/', 'entryname')
-            # would result in two slashes.
-            newname = os.path.join(dest, entryname) if isgroup(dest) else dest
+            newname = str(Path(dest) / entryname) if isgroup(dest) else dest
             if db.get(newname) is not None:
                 confirm(f"Overwrite {newname}?", force)
             entry = db.pop(name, force=True)
@@ -1135,7 +1144,7 @@ def autotype(obj: Obj, sequence: str, delay: str, menu: str) -> None:
     for groupname, entryname in db:
         name = f"{groupname}/{entryname}"
         names.append(name)
-        keywords = [entryname.lower()] + db.keywords(name)
+        keywords = [entryname.lower(), *db.keywords(name)]
         title = window[1].lower()
         if any(keyword in title for keyword in keywords):
             matches.append(name)
@@ -1144,8 +1153,8 @@ def autotype(obj: Obj, sequence: str, delay: str, menu: str) -> None:
         choice = matches[0].strip()
     else:
         command = shlex.split(menu) if isinstance(menu, str) else menu
-        choices = "\n".join(sorted(matches if matches else names))
-        choice = out(command, input=choices).strip()
+        choices = "\n".join(sorted(matches or names))
+        choice = out(command, input_=choices).strip()
 
     entry = db.get(choice)
     assert entry is not None
@@ -1156,5 +1165,5 @@ def autotype(obj: Obj, sequence: str, delay: str, menu: str) -> None:
         keyboard(key, entry, delay)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     cli()  # pylint: disable=no-value-for-parameter

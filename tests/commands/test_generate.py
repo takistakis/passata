@@ -21,12 +21,10 @@ import sys
 from collections.abc import Generator
 from pathlib import Path
 from textwrap import dedent
-from typing import Any
 
 import click
 import pytest
 from click.testing import Result
-from pytest import MonkeyPatch
 
 import passata
 from tests.helpers import clipboard, read, run
@@ -38,7 +36,12 @@ SYMBOLS = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"""
 
 def test_generate_password_length_no_symbols() -> None:
     password = passata.generate_password(
-        length=10, entropy=None, symbols=False, words=False, wordpath=None, force=False
+        length=10,
+        entropy=None,
+        symbols=False,
+        words=False,
+        wordpath=None,
+        force=False,
     )
 
     assert len(password) == 10
@@ -48,7 +51,12 @@ def test_generate_password_length_no_symbols() -> None:
 
 def test_generate_password_length_symbols() -> None:
     password = passata.generate_password(
-        length=17, entropy=None, symbols=True, words=False, wordpath=None, force=False
+        length=17,
+        entropy=None,
+        symbols=True,
+        words=False,
+        wordpath=None,
+        force=False,
     )
 
     assert len(password) == 17
@@ -64,6 +72,7 @@ def test_generate_password_entropy_no_symbols() -> None:
         wordpath=None,
         force=False,
     )
+
     assert len(password) == 22
 
 
@@ -76,12 +85,14 @@ def test_generate_password_entropy_symbols() -> None:
         wordpath=None,
         force=False,
     )
+
     assert len(password) == 20
 
 
-def test_generate_password_short(monkeypatch: MonkeyPatch) -> None:
+def test_generate_password_short(monkeypatch: pytest.MonkeyPatch) -> None:
     # Do not confirm
     monkeypatch.setattr(click, "confirm", lambda _: False)
+
     with pytest.raises(SystemExit):
         password = passata.generate_password(
             length=4,
@@ -91,11 +102,19 @@ def test_generate_password_short(monkeypatch: MonkeyPatch) -> None:
             wordpath=None,
             force=False,
         )
+
     # Confirm
     monkeypatch.setattr(click, "confirm", lambda _: True)
+
     password = passata.generate_password(
-        length=4, entropy=None, symbols=True, words=False, wordpath=None, force=False
+        length=4,
+        entropy=None,
+        symbols=True,
+        words=False,
+        wordpath=None,
+        force=False,
     )
+
     assert len(password) == 4
 
 
@@ -103,6 +122,7 @@ def test_generate_passphrase(tmp_path: Path) -> None:
     words = ["asdf", "test", "piou"]
     wordpath = tmp_path / "words"
     wordpath.write_text("\n".join(words))
+
     passphrase = passata.generate_password(
         length=5,
         entropy=None,
@@ -111,6 +131,7 @@ def test_generate_passphrase(tmp_path: Path) -> None:
         wordpath=wordpath,
         force=True,
     )
+
     passphrase_parts = passphrase.split()
     assert len(passphrase_parts) == 5
     assert all(word in words for word in passphrase_parts)
@@ -118,6 +139,7 @@ def test_generate_passphrase(tmp_path: Path) -> None:
 
 def test_generate_passphrase_file_not_found(tmp_path: Path) -> None:
     wordpath = tmp_path / "words"
+
     with pytest.raises(SystemExit):
         passata.generate_password(
             length=5,
@@ -130,28 +152,29 @@ def test_generate_passphrase_file_not_found(tmp_path: Path) -> None:
 
 
 @pytest.fixture
-def patch(monkeypatch: MonkeyPatch) -> Generator[None, None, None]:
-    def generate_password(length: int, *args: Any, **kwargs: Any) -> str:
-        return length * "x"
-
+def patch(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     # NOTE: The following monkeypatch eats the "Generated
     # password with x bits of entropy" message.
-    monkeypatch.setattr(passata, "generate_password", generate_password)
+    monkeypatch.setattr(
+        passata,
+        "generate_password",
+        lambda length, *_, **__: length * "x",
+    )
     monkeypatch.setattr(click, "pause", lambda: print("Press any key to continue ..."))
 
     # Clear the clipboard before and after the test
     if sys.platform == "darwin":
-        input = ""
+        input_ = ""
         command = ["pbcopy", "w"]
     else:
-        input = None
+        input_ = None
         command = ["xsel", "-c", "-b"]
 
-    passata.out(command, input=input)
+    passata.out(command, input_=input_)
 
     yield
 
-    passata.out(command, input=input)
+    passata.out(command, input_=input_)
 
 
 def assert_password_in_output(result: Result) -> None:
@@ -171,60 +194,67 @@ def assert_password_in_clipboard(result: Result) -> None:
 def assert_password_in_output_and_clipboard(result: Result) -> None:
     assert result.exit_code == 0
     assert result.exception is None
-    assert result.output == dedent(
-        """\
+    assert result.output == dedent("""\
         xxxxxxxxxxxxxxxxxxxx
         Copied generated password to clipboard.
-        """
-    )
+    """)
     assert clipboard() == "xxxxxxxxxxxxxxxxxxxx"
 
 
 class TestGenerateNoName:
     """Test generate without argument and different print/clip combinations."""
 
-    def test_generate(self, patch: None, db: Path) -> None:
+    @pytest.mark.usefixtures("patch", "db")
+    def test_generate(self) -> None:
         result = run(["generate"])
         assert_password_in_clipboard(result)
 
-    def test_generate_clip(self, patch: None, db: Path) -> None:
+    @pytest.mark.usefixtures("patch", "db")
+    def test_generate_clip(self) -> None:
         result = run(["generate", "--clip"])
         assert_password_in_clipboard(result)
 
-    def test_generate_no_clip(self, patch: None, db: Path) -> None:
+    @pytest.mark.usefixtures("patch", "db")
+    def test_generate_no_clip(self) -> None:
         result = run(["generate", "--no-clip"])
         assert_password_in_output(result)
 
-    def test_generate_print(self, patch: None, db: Path) -> None:
+    @pytest.mark.usefixtures("patch", "db")
+    def test_generate_print(self) -> None:
         result = run(["generate", "--print"])
         assert_password_in_output_and_clipboard(result)
 
-    def test_generate_no_print(self, patch: None, db: Path) -> None:
+    @pytest.mark.usefixtures("patch", "db")
+    def test_generate_no_print(self) -> None:
         result = run(["generate", "--no-print"])
         assert_password_in_clipboard(result)
 
-    def test_generate_print_clip(self, patch: None, db: Path) -> None:
+    @pytest.mark.usefixtures("patch", "db")
+    def test_generate_print_clip(self) -> None:
         result = run(["generate", "--print", "--clip"])
         assert_password_in_output_and_clipboard(result)
 
-    def test_generate_print_no_clip(self, patch: None, db: Path) -> None:
+    @pytest.mark.usefixtures("patch", "db")
+    def test_generate_print_no_clip(self) -> None:
         result = run(["generate", "--print", "--no-clip"])
         assert_password_in_output(result)
 
-    def test_generate_no_print_clip(self, patch: None, db: Path) -> None:
+    @pytest.mark.usefixtures("patch", "db")
+    def test_generate_no_print_clip(self) -> None:
         result = run(["generate", "--no-print", "--clip"])
         assert_password_in_clipboard(result)
 
-    def test_generate_no_print_no_clip(self, patch: None, db: Path) -> None:
+    @pytest.mark.usefixtures("patch", "db")
+    def test_generate_no_print_no_clip(self) -> None:
         result = run(["generate", "--no-print", "--no-clip"])
         assert_password_in_output(result)
 
 
-def test_generate_put_in_new_entry_print(patch: None, db: Path) -> None:
+@pytest.mark.usefixtures("patch")
+def test_generate_put_in_new_entry_print(db: Path) -> None:
     result = run(["generate", "asdf/test", "--print", "--no-clip"])
     assert_password_in_output(result)
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -235,24 +265,22 @@ def test_generate_put_in_new_entry_print(patch: None, db: Path) -> None:
         asdf:
           test:
             password: xxxxxxxxxxxxxxxxxxxx
-        """
-    )
+    """)
 
 
-def test_generate_put_in_existing_entry_clip(patch: None, db: Path) -> None:
+@pytest.mark.usefixtures("patch")
+def test_generate_put_in_existing_entry_clip(db: Path) -> None:
     result = run(["generate", "internet/github", "--force"])
+
     assert result.exit_code == 0
     assert result.exception is None
-    assert result.output == dedent(
-        """\
+    assert result.output == dedent("""\
         Copied old password to clipboard.
         Press any key to continue ...
         Copied generated password to clipboard.
-        """
-    )
+    """)
     assert clipboard() == "xxxxxxxxxxxxxxxxxxxx"
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: xxxxxxxxxxxxxxxxxxxx
@@ -261,26 +289,20 @@ def test_generate_put_in_existing_entry_clip(patch: None, db: Path) -> None:
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
 
 
 class TestGetWordpath:
     """Test get_wordpath function."""
 
     def test_wordpath_not_none(self) -> None:
-        """
-        Test that the function returns the provided wordpath if it's not None.
-        """
+        """Test that the function returns the provided wordpath if it's not None."""
         wordpath = Path("/path/to/wordlist.txt")
         assert passata.get_wordpath(wordpath) == wordpath
 
-    def test_wordpath_in_directories(self, monkeypatch: MonkeyPatch) -> None:
-        """
-        Test that the function returns the wordpath if it exists in one of the
-        directories.
-        """
-        monkeypatch.setattr("os.path.exists", lambda x: True)
+    def test_wordpath_in_directories(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that the function returns the wordpath if it exists."""
+        monkeypatch.setattr("os.path.exists", lambda _: True)
         wordpath = passata.get_wordpath(None)
         assert str(wordpath).endswith("eff_large_wordlist.txt")
         assert any(
@@ -291,12 +313,9 @@ class TestGetWordpath:
             ]
         )
 
-    def test_wordpath_not_found(self, monkeypatch: MonkeyPatch) -> None:
-        """
-        Test that the function exits if the wordpath is not found in any of the
-        directories.
-        """
-        monkeypatch.setattr("passata.Path.exists", lambda x: False)
+    def test_wordpath_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that the function exits if the wordpath is not found."""
+        monkeypatch.setattr("passata.Path.exists", lambda _: False)
         with pytest.raises(SystemExit) as cm:
             passata.get_wordpath(None)
 
