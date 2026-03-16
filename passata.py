@@ -171,6 +171,7 @@ def schedule_clear_clipboard(timeout: int) -> None:
         #!/bin/bash
         sleep {timeout}
         echo -n '' | pbcopy
+        rm -f "$0"
     """)
 
     with tempfile.NamedTemporaryFile("w", delete=False, suffix=".sh") as f:
@@ -188,7 +189,7 @@ def to_clipboard(data: str, timeout: int) -> None:
     If `timeout` is 0, the clipboard is not cleared.
     """
     command = (
-        ["pbcopy", "w"]
+        ["pbcopy"]
         if sys.platform == "darwin"
         else ["xsel", "-i", "-b", "-t", str(timeout * 1000)]
     )
@@ -275,7 +276,10 @@ def default_gpg_id() -> str:
     gpg_ids = re.search(r"<(.*)>", out(command))
     if gpg_ids is None:
         sys.exit("No gpg secret keys found")
-    return gpg_ids.group(1)
+    gpg_id = gpg_ids.group(1)
+    if not gpg_id:
+        sys.exit("No gpg secret keys found")
+    return gpg_id
 
 
 # Database
@@ -460,11 +464,11 @@ class DB:
         matches = DB(path=None)
         for groupname, entryname in self:
             name = f"{groupname}/{entryname}"
-            if any(name in entryname.lower() for name in names):
+            if any(search_term in entryname.lower() for search_term in names):
                 matches.put(name, self.get(name))
                 continue
             for keyword in self.keywords(name):
-                if any(name in keyword for name in names):
+                if any(search_term in keyword for search_term in names):
                     matches.put(f"{name} ({keyword})", self.get(name))
                     break
 
@@ -863,7 +867,10 @@ def generate_password(
     "-e",
     "--entropy",
     type=click.FLOAT,
-    help="Calculate length for given bits of entropy (takes precedence over --length).",
+    help=(
+        "Calculate length for given minimum bits of entropy "
+        "(takes precedence over --length)."
+    ),
 )
 @click.option(
     "-s/-S",
@@ -905,33 +912,29 @@ def generate(
 
     # Entropy takes precedence over length but cli params take precedence over
     # config.
-    entropy_source = ctx.get_parameter_source("entropy")
-    length_source = ctx.get_parameter_source("length")
     if (
-        entropy_source is not None
-        and length_source is not None
-        and entropy_source.name == "DEFAULT_MAP"
-        and length_source.name == "COMMANDLINE"
+        ctx.get_parameter_source("entropy") == click.core.ParameterSource.DEFAULT_MAP
+        and ctx.get_parameter_source("length") == click.core.ParameterSource.COMMANDLINE
     ):
         entropy = None
 
     password = generate_password(length, entropy, symbols, words, wordpath, force)
 
+    if name:
+        old_password = do_insert(obj, name, password, force)
+        if clip and old_password is not None:
+            to_clipboard(str(old_password), timeout=0)
+            click.echo("Copied old password to clipboard.")
+            click.pause()
+
+    # Print the password if explicitly requested or if there is no other output
+    # method.
     if print_ or (not name and not clip):
         click.echo(password)
 
-    old_password = do_insert(obj, name, password, force) if name else None
-
-    if not clip:
-        return
-
-    if old_password is not None:
-        to_clipboard(str(old_password), timeout=0)
-        click.echo("Copied old password to clipboard.")
-        click.pause()
-
-    to_clipboard(password, timeout=timeout)
-    click.echo("Copied generated password to clipboard.")
+    if clip:
+        to_clipboard(password, timeout=timeout)
+        click.echo("Copied generated password to clipboard.")
 
 
 @cli.command()
@@ -943,7 +946,7 @@ def generate(
     help="Which editor to use.",
 )
 @click.pass_obj
-def edit(obj: Obj, name: str, editor: str) -> None:
+def edit(obj: Obj, name: str | None, editor: str) -> None:
     """Edit entry, group or the whole database."""
 
     class EventHandler(watchdog.events.PatternMatchingEventHandler):
@@ -989,39 +992,46 @@ def edit(obj: Obj, name: str, editor: str) -> None:
     comment = name or "passata database"
     text = f"# {comment}\n{original}"
 
-    temp = tempfile.NamedTemporaryFile(mode="w+", prefix="passata-", suffix=".yml")  # noqa: SIM115
-    temp.write(text)
-    temp.flush()
-
-    temppath = Path(temp.name)
-    directory = temppath.parent
-    event_handler = EventHandler(temp.name)
-    event_handler.last_content = text
-    observer = watchdog.observers.Observer()
-    observer.schedule(event_handler, path=str(directory), recursive=True)
-    observer.start()
-
-    click.edit(filename=temp.name, editor=editor)
-
-    observer.stop()
-    observer.join()
-
-    # Read the file one last time. It may have already been read
-    # in the handler, but it's not guaranteed. If for example the
-    # user saved and exited the editor, there is a race condition.
-    updated = temppath.read_text()
-    temp.close()
-
-    if updated == text:
-        return
+    with tempfile.NamedTemporaryFile(
+        mode="w+",
+        prefix="passata-",
+        suffix=".yml",
+        delete=False,
+    ) as temp:
+        temp.write(text)
+        temp.flush()
+        temppath = Path(temp.name)
 
     try:
-        data = to_dict(updated)
-    except yaml.scanner.ScannerError:
-        sys.exit("Invalid yaml")
-    else:
-        db.put(name, data)
-        db.write(obj["gpg_id"])
+        directory = temppath.parent
+        event_handler = EventHandler(str(temppath))
+        event_handler.last_content = text
+        observer = watchdog.observers.Observer()
+        observer.schedule(event_handler, path=str(directory), recursive=True)
+        observer.start()
+
+        click.edit(filename=str(temppath), editor=editor)
+
+        observer.stop()
+        observer.join()
+
+        # Read the file one last time. It may have already been read
+        # in the handler, but it's not guaranteed. If for example the
+        # user saved and exited the editor, there is a race condition.
+        updated = temppath.read_text()
+
+        if updated == text:
+            return
+
+        try:
+            data = to_dict(updated)
+        except yaml.scanner.ScannerError:
+            sys.exit("Invalid yaml")
+        else:
+            db.put(name, data)
+            db.write(obj["gpg_id"])
+    finally:
+        temppath.unlink(missing_ok=True)
 
 
 @cli.command()
@@ -1052,7 +1062,7 @@ def rm(obj: Obj, names: list[str], force: bool) -> None:
 @click.argument("dest", metavar="DEST/GROUP")
 @click.option("-f", "--force", is_flag=True, help="Do not prompt for confirmation.")
 @click.pass_obj
-def mv(obj: Obj, source: str, dest: str, force: bool) -> None:
+def mv(obj: Obj, source: tuple[str, ...], dest: str, force: bool) -> None:
     """Rename SOURCE to DEST or move SOURCE(s) to GROUP."""
     db: DB = obj["_db"]
     db.read(lock=True)

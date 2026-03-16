@@ -47,21 +47,20 @@ _passata() {
           _arguments -s : \
             '(-e --editor)'{-e,--editor}'[Which editor to use]:string:' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
-          _complete_groups
           ;;
 
         ls)
           _arguments -s : \
-            '(-n --no-tree)'{-n,--no-tree}'[Print entries in <group>/<name> format]' \
+            '(-n --no-tree)'{-n,--no-tree}'[Print entries in '\''groupname/entryname'\'' format]' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_groups
           ;;
 
         find)
           _arguments -s : \
-            '(-n --no-tree)'{-n,--no-tree}'[Print entries in <group>/<name> format]' \
+            '(-n --no-tree)'{-n,--no-tree}'[Print entries in '\''groupname/entryname'\'' format]' \
             '(-p --print)'{-p,--print}'[Show the found entries]' \
-            '(-c --clip -C --no-clip)'{-c,--clip}'[Copy password to clipboard]' \
+            '(-c --clip -C --no-clip)'{-c,--clip}'[Copy the first result'\''s password to clipboard]' \
             '(-c --clip -C --no-clip)'{-C,--no-clip}'[Do not copy password to clipboard]' \
             '(-t --timeout)'{-t,--timeout}'[Number of seconds until the clipboard is cleared]:int:' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
@@ -93,12 +92,12 @@ _passata() {
             '(-c --clip -C --no-clip)'{-C,--no-clip}'[Do not copy password to clipboard]' \
             '(-t --timeout)'{-t,--timeout}'[Number of seconds until the clipboard is cleared]:int:' \
             '(-l --length -e --entropy)'{-l,--length}'[Length of the generated password]:int:' \
-            '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given bits of entropy]:int:' \
+            '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given minimum bits of entropy]:float:' \
             '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-s,--symbols}'[Use symbols in the generated password]' \
             '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-S,--no-symbols}'[Do not use symbols in the generated password]' \
-            '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-w,--words}'[Generate diceware-like passphrase]' \
+            '(-s --symbols -S --no-symbols -w --words -W --no-words)'{-w,--words}'[Generate diceware-like passphrase]' \
             '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-W,--no-words}'[Do not generate diceware-like passphrase]' \
-            '(-w --wordpath -s --symbols -S --no-symbols)'{-w,--wordpath}'[List of words for passphrase generation]:file:_files' \
+            '(-s --symbols -S --no-symbols --W --no-words --wordpath)--wordpath[List of words for passphrase generation]:file:_files' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_entries
           ;;
