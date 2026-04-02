@@ -19,6 +19,7 @@ test:
 	pyupgrade --py310-plus passata.py tests/*.py
 	coverage run -m pytest
 	coverage report
+	coverage html
 	mypy passata.py tests/ --disallow-untyped-defs
 
 .PHONY: install uninstall test
