@@ -18,6 +18,7 @@
 """Tests for passata show."""
 
 from collections.abc import Callable
+from pathlib import Path
 from textwrap import dedent
 
 import pytest
@@ -132,3 +133,10 @@ def test_show_color(editor: Callable) -> None:
     """)
     result = run(["--color", "show", "group"])
     assert result.output == expected
+
+
+def test_show_clipboard_no_password(db: Path) -> None:
+    db.write_text(db.read_text() + "mail:\n  gmail:\n    username: user\n")
+    result = run(["show", "mail/gmail", "--clip"])
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "mail/gmail does not have a password\n"
