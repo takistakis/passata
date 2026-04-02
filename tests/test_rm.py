@@ -21,58 +21,63 @@ from pathlib import Path
 from textwrap import dedent
 
 import click
-from pytest import MonkeyPatch
+import pytest
 
 from tests.helpers import read, run
 
 
-def test_rm_entry(monkeypatch: MonkeyPatch, db: Path) -> None:
+def test_rm_entry(monkeypatch: pytest.MonkeyPatch, db: Path) -> None:
     # Normal removal
     run(["rm", "--force", "internet/reddit"])
-    assert read(db) == dedent(
-        """\
+
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
             username: takis
-        """
-    )
+    """)
 
     # Remove nonexistent entry
     result = run(["rm", "internet/nonexistent"])
+
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/nonexistent not found\n"
 
     # Do not confirm removal
-    monkeypatch.setattr(click, "confirm", lambda m: False)
+    monkeypatch.setattr(click, "confirm", lambda _: False)
+
     run(["rm", "internet/github"])
-    assert read(db) == dedent(
-        """\
+
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
             username: takis
-        """
-    )
+    """)
 
     # Remove last entry
     run(["rm", "--force", "internet/github"])
+
     assert read(db) == ""
 
 
 def test_rm_entries(db: Path) -> None:
     run(["rm", "--force", "internet/reddit", "internet/github"])
+
     assert read(db) == ""
 
     result = run(["rm", "--force", "asdf/asdf", "asdf/asdf2"])
+
     assert isinstance(result.exception, SystemExit)
     assert result.output == "asdf/asdf not found\n"
 
 
 def test_rm_group(db: Path) -> None:
     result = run(["rm", "--force", "asdf"])
+
     assert isinstance(result.exception, SystemExit)
     assert result.output == "asdf not found\n"
 
     run(["rm", "--force", "internet"])
+
     assert read(db) == ""

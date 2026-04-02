@@ -18,7 +18,7 @@
 """The passata test suite conftest file."""
 
 import os
-from collections.abc import Callable, Generator
+from collections.abc import Callable
 from pathlib import Path
 from textwrap import dedent
 
@@ -29,50 +29,45 @@ import passata
 
 
 @pytest.fixture
-def db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
-    monkeypatch.setattr(passata.DB, "encrypt", lambda s, x, g: x)
-    monkeypatch.setattr(passata.DB, "decrypt", lambda s, x: open(x).read())
+def db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.setattr(passata.DB, "encrypt", lambda _, x, __: x)
+    monkeypatch.setattr(passata.DB, "decrypt", lambda _, x: Path(x).read_text())
 
     confpath = tmp_path / "config.yml"
     dbpath = tmp_path / "passata.db"
 
     confpath.write_text(
-        dedent(
-            f"""\
-            database: {dbpath}
-            gpg_id: mail@mail.com
-            """
-        )
+        dedent(f"""\
+        database: {dbpath}
+        gpg_id: mail@mail.com
+    """),
     )
 
     dbpath.write_text(
-        dedent(
-            """\
-            internet:
-              github:
-                password: gh
-                username: takis
-              reddit:
-                password: rdt
-                username: sakis
-            """
-        )
+        dedent("""\
+        internet:
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: rdt
+            username: sakis
+    """),
     )
 
     os.environ["PASSATA_CONFIG_PATH"] = str(confpath)
 
-    yield dbpath
+    return dbpath
 
 
+# ruff: noqa: ARG001
 @pytest.fixture
-def editor(
-    monkeypatch: pytest.MonkeyPatch,
-) -> Generator[Callable[[str], None], None, None]:
+def editor(monkeypatch: pytest.MonkeyPatch) -> Callable[[str], None]:
     def make_editor(updated: str) -> None:
         def mock_editor(filename: str, editor: str) -> None:
-            with open(filename, "w") as f:
+            with Path(filename).open("w") as f:
                 f.write(updated)
 
         monkeypatch.setattr(click, "edit", mock_editor)
 
-    yield make_editor
+    return make_editor
