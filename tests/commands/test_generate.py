@@ -17,6 +17,7 @@
 
 """Tests for passata generate."""
 
+import os
 import sys
 from collections.abc import Generator
 from pathlib import Path
@@ -320,3 +321,14 @@ class TestGetWordpath:
             passata.get_wordpath(None)
 
         assert str(cm.value) == "--words option requires a wordpath"
+
+
+@pytest.mark.usefixtures("patch")
+def test_generate_length_overrides_config_entropy(db: Path) -> None:  # noqa: ARG001
+    """When entropy is from config and length is on CLI, length takes precedence."""
+    confpath = Path(os.environ["PASSATA_CONFIG_PATH"])
+    confpath.write_text(confpath.read_text() + "generate:\n  entropy: 128\n")
+    result = run(["generate", "--length", "10", "--no-clip"])
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert result.output == "xxxxxxxxxx\n"

@@ -92,6 +92,38 @@ def test_default_gpg_id(monkeypatch: pytest.MonkeyPatch) -> None:
         passata.default_gpg_id()
 
 
+def test_default_gpg_id_empty_email(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Regex matches but the captured group is empty
+    monkeypatch.setattr(passata, "out", lambda _: "uid [ultimate] Name Surname <>")
+    with pytest.raises(SystemExit):
+        passata.default_gpg_id()
+
+
+def test_invalid_command_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    confpath = tmp_path / "config.yml"
+    dbpath = tmp_path / "passata.db"
+    confpath.write_text(f"database: {dbpath}\ngpg_id: test\nshow: not_a_dict\n")
+    monkeypatch.setenv("PASSATA_CONFIG_PATH", str(confpath))
+    result = run(["show", "internet/github"])
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "Invalid configuration for command show\n"
+
+
+def test_invalid_database_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    confpath = tmp_path / "config.yml"
+    confpath.write_text("database:\n  - a\n  - b\ngpg_id: test\n")
+    monkeypatch.setenv("PASSATA_CONFIG_PATH", str(confpath))
+    result = run(["show", "internet/github"])
+    assert isinstance(result.exception, SystemExit)
+    assert result.output.startswith("Value for database")
+
+
 def test_keywords(db: Path) -> None:
     database = passata.DB(db)
 
