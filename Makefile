@@ -18,6 +18,7 @@ test:
 	ruff check --fix *.py tests
 	coverage run -m pytest
 	coverage report
+	coverage html
 	mypy passata.py tests/ --disallow-untyped-defs
 
 .PHONY: install uninstall test
