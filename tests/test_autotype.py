@@ -17,18 +17,15 @@
 
 """Tests for passata autotype."""
 
-import sys
+from collections.abc import Callable
 
 import pytest
 
 import passata
 from tests.helpers import run
 
-if sys.platform == "darwin":
-    pytest.skip("Skipping Linux-only tests", allow_module_level=True)
 
-
-def test_get_autotype_keys(monkeypatch):
+def test_get_autotype_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     # <autotype> field in entry
     entry = {
         "username": "takis",
@@ -50,18 +47,20 @@ def test_get_autotype_keys(monkeypatch):
 
     # No known fields in entry
     # Suppress notification
-    monkeypatch.setattr(passata, "call", lambda command: None)
+    monkeypatch.setattr(passata, "call", lambda _: None)
     entry = {"name": "takis", "pass": "pass"}
     with pytest.raises(SystemExit):
         passata.get_autotype_keys(entry)
 
 
-def test_autotype(monkeypatch, db):
-    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
-    monkeypatch.setattr(passata, "call", lambda command: print(command))
-
+@pytest.mark.usefixtures("db")
+def test_autotype(monkeypatch: pytest.MonkeyPatch) -> None:
     window_title = "GitHub: The world's leading blah blah blah"
+    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
+    monkeypatch.setattr(passata, "call", print)
+
     result = run(["autotype"])
+
     assert result.exception is None
     assert result.output == (
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'takis']\n"
@@ -71,14 +70,15 @@ def test_autotype(monkeypatch, db):
     )
 
 
-def test_autotype_no_username(monkeypatch, db):
+@pytest.mark.usefixtures("db")
+def test_autotype_no_username(monkeypatch: pytest.MonkeyPatch) -> None:
+    window_title = "test1"
     monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
-    monkeypatch.setattr(passata, "call", lambda command: print(command))
-
+    monkeypatch.setattr(passata, "call", print)
     run(["insert", "autotype/test1", "--password=pass1"])
 
-    window_title = "test1"
     result = run(["autotype"])
+
     assert result.exception is None
     assert result.output == (
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'pass1']\n"
@@ -86,16 +86,20 @@ def test_autotype_no_username(monkeypatch, db):
     )
 
 
-def test_autotype_keywords_simple(monkeypatch, db, editor):
+@pytest.mark.usefixtures("db")
+def test_autotype_keywords_simple(
+    monkeypatch: pytest.MonkeyPatch,
+    editor: Callable[[str], None],
+) -> None:
+    window_title = "A website with the keyword in its title"
     monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
-    monkeypatch.setattr(passata, "call", lambda command: print(command))
-
+    monkeypatch.setattr(passata, "call", print)
     # Add a new entry with a single string in keywords
-    editor(updated=("password: pass2\n" "keywords: the keyword\n"))
+    editor("password: pass2\nkeywords: the keyword\n")
     run(["edit", "autotype/test2"])
 
-    window_title = "A website with the keyword in its title"
     result = run(["autotype"])
+
     assert result.exception is None
     assert result.output == (
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'pass2']\n"
@@ -103,28 +107,31 @@ def test_autotype_keywords_simple(monkeypatch, db, editor):
     )
 
 
-def test_autotype_keywords_complex(monkeypatch, db, editor):
+@pytest.mark.usefixtures("db")
+def test_autotype_keywords_complex(
+    monkeypatch: pytest.MonkeyPatch,
+    editor: Callable[[str], None],
+) -> None:
+    window_title = "GitHub"
     monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
-    monkeypatch.setattr(passata, "call", lambda command: print(command))
+    monkeypatch.setattr(passata, "call", print)
 
     # Add a new entry with an autotype field and a list of
     # strings in keywords that conflict with another entry.
     editor(
-        updated=(
-            "username: user3\n"
-            "password: pass3\n"
-            "keywords:\n"
-            "- github\n"
-            "- yoyoyo\n"
-            "autotype: <username> Return !1.5 <password> Return\n"
-        )
+        "username: user3\n"
+        "password: pass3\n"
+        "keywords:\n"
+        "- github\n"
+        "- yoyoyo\n"
+        "autotype: <username> Return !1.5 <password> Return\n",
     )
     run(["edit", "autotype/test3"])
 
-    def fake_out(command, input):
+    def fake_out(command: list[str], input_: str | None = None) -> str:
         print("Calling", command)
         print("With input:")
-        print(input)
+        print(input_)
         print()
         return "autotype/test3"
 
@@ -133,8 +140,8 @@ def test_autotype_keywords_complex(monkeypatch, db, editor):
     monkeypatch.setattr(passata, "out", fake_out)
     monkeypatch.setattr("time.sleep", lambda duration: print("Sleeping for", duration))
 
-    window_title = "GitHub"
     result = run(["autotype"])
+
     assert result.exception is None
     assert result.output == (
         "Calling ['dmenu']\n"
@@ -150,14 +157,18 @@ def test_autotype_keywords_complex(monkeypatch, db, editor):
     )
 
 
-def test_autotype_invalid(monkeypatch, db, editor):
+@pytest.mark.usefixtures("db")
+def test_autotype_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+    editor: Callable[[str], None],
+) -> None:
+    window_title = "test4"
     monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
     # Suppress notification
-    monkeypatch.setattr(passata, "call", lambda command: None)
-
-    editor(updated=("password: pass4\n" "autotype: <username> Tab <password> Return\n"))
+    monkeypatch.setattr(passata, "call", lambda _: None)
+    editor("password: pass4\nautotype: <username> Tab <password> Return\n")
     run(["edit", "autotype/test4"])
 
-    window_title = "test4"
     result = run(["autotype"])
+
     assert isinstance(result.exception, SystemExit)

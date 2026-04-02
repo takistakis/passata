@@ -20,7 +20,7 @@
 from textwrap import dedent
 
 import click
-from pytest import MonkeyPatch
+import pytest
 
 from passata import Path
 from tests.helpers import read, run
@@ -28,10 +28,10 @@ from tests.helpers import read, run
 
 def test_mv_entry_to_entry(db: Path) -> None:
     result = run(["mv", "internet/reddit", "internet/rdt"])
+
     assert result.exit_code == 0
     assert result.exception is None
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -39,14 +39,13 @@ def test_mv_entry_to_entry(db: Path) -> None:
           rdt:
             password: rdt
             username: sakis
-        """
-    )
+    """)
 
 
 def test_mv_entry_to_group(db: Path) -> None:
     run(["mv", "internet/reddit", "new"])
-    assert read(db) == dedent(
-        """\
+
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -55,20 +54,21 @@ def test_mv_entry_to_group(db: Path) -> None:
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
 
 
-def test_mv_entries_to_entry(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_mv_entries_to_entry() -> None:
     result = run(["mv", "internet/reddit", "internet/github", "new/new"])
+
     assert isinstance(result.exception, SystemExit)
     assert result.output == "new/new is not a group\n"
 
 
 def test_mv_entries_to_group(db: Path) -> None:
     run(["mv", "internet/reddit", "internet/github", "new"])
-    assert read(db) == dedent(
-        """\
+
+    assert read(db) == dedent("""\
         new:
           github:
             password: gh
@@ -76,14 +76,13 @@ def test_mv_entries_to_group(db: Path) -> None:
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
 
 
 def test_mv_group_to_group(db: Path) -> None:
     run(["mv", "internet", "test"])
-    assert read(db) == dedent(
-        """\
+
+    assert read(db) == dedent("""\
         test:
           github:
             password: gh
@@ -91,42 +90,49 @@ def test_mv_group_to_group(db: Path) -> None:
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
 
 
-def test_mv_group_to_entry(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_mv_group_to_entry() -> None:
     result = run(["mv", "internet", "internet/github"])
+
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/github is not a group\n"
 
 
-def test_mv_nonexistent_entry(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_mv_nonexistent_entry() -> None:
     result = run(["mv", "internet/nonexistent", "group"])
+
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet/nonexistent not found\n"
 
 
-def test_mv_nonexistent_group(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_mv_nonexistent_group() -> None:
     result = run(["mv", "nonexistent", "group"])
+
     assert isinstance(result.exception, SystemExit)
     assert result.output == "nonexistent not found\n"
 
 
-def test_mv_group_to_existing_group(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_mv_group_to_existing_group() -> None:
     run(["insert", "group/test", "--password=pass"])
+
     result = run(["mv", "group", "internet"])
+
     assert isinstance(result.exception, SystemExit)
     assert result.output == "internet already exists\n"
 
 
-def test_mv_overwrite(monkeypatch: MonkeyPatch, db: Path) -> None:
-    monkeypatch.setattr(click, "confirm", lambda m: False)
+def test_mv_overwrite(monkeypatch: pytest.MonkeyPatch, db: Path) -> None:
+    monkeypatch.setattr(click, "confirm", lambda _: False)
 
     run(["mv", "internet/reddit", "internet/github"])
 
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -134,18 +140,15 @@ def test_mv_overwrite(monkeypatch: MonkeyPatch, db: Path) -> None:
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
 
-    monkeypatch.setattr(click, "confirm", lambda m: True)
+    monkeypatch.setattr(click, "confirm", lambda _: True)
 
     run(["mv", "internet/reddit", "internet/github"])
 
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: rdt
             username: sakis
-        """
-    )
+    """)

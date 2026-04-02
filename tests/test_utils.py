@@ -23,7 +23,6 @@ import time
 from pathlib import Path
 
 import pytest
-from pytest import MonkeyPatch
 
 import passata
 from tests.helpers import run
@@ -42,11 +41,11 @@ def test_command_not_found() -> None:
 def background_lock(db: Path) -> None:
     # Assign the lock to a variable to keep it in scope and prevent the file
     # from closing.
-    lock = passata.lock_file(db)  # noqa
+    lock = passata.lock_file(db)  # noqa: F841
     time.sleep(1)
 
 
-def test_lock(monkeypatch: MonkeyPatch, db: Path) -> None:
+def test_lock(db: Path) -> None:
     # lockf locks are bound to processes, not file descriptors
     # so we have to use a forked process to properly test this.
     process = multiprocessing.Process(target=background_lock, args=(db,))
@@ -63,21 +62,17 @@ def test_lock(monkeypatch: MonkeyPatch, db: Path) -> None:
     assert result.output == ""
     assert result.exception is None
 
-    try:
-        # The file is normally unlocked and deleted when the
-        # program exits (see: atexit), which hasn't happened yet.
-        # The first time we call unlock_file, we explicitly unlock it.
-        passata.unlock_file(db)
-        # The second, we do nothing but no error is raised
-        # either, because we ignore any FileNotFoundError.
-        passata.unlock_file(db)
-    except Exception as e:
-        pytest.fail(f"unlock_file: {e}")
+    # The file is normally unlocked and deleted when the
+    # program exits (see: atexit), which hasn't happened yet.
+    # The first time we call unlock_file, we explicitly unlock it.
+    passata.unlock_file(db)
+    # The second, we do nothing but no error is raised
+    # either, because we ignore any FileNotFoundError.
+    passata.unlock_file(db)
 
 
-def test_default_gpg_id(monkeypatch: MonkeyPatch) -> None:
-    output = textwrap.dedent(
-        """\
+def test_default_gpg_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    output = textwrap.dedent("""\
         /home/user/.gnupg/pubring.kbx
         ------------------------------
         sec   rsa4096 2015-02-26 [SC] [expires: 2018-12-20]
@@ -88,12 +83,11 @@ def test_default_gpg_id(monkeypatch: MonkeyPatch) -> None:
         sec   rsa4096 2016-01-1 [SC] [expires: 2018-1-1]
             0123456789ABCDEF0123456789ABCDEF01234567
         uid           [ultimate] Name Surname <mail2@mail.com>
-        ssb   rsa4096 2016-01-1 [E] [expires: 2018-1-1]"""
-    )
-    monkeypatch.setattr(passata, "out", lambda cmd: output)
+        ssb   rsa4096 2016-01-1 [E] [expires: 2018-1-1]""")
+    monkeypatch.setattr(passata, "out", lambda _: output)
     assert passata.default_gpg_id() == "mail@mail.com"
     # No secret keys
-    monkeypatch.setattr(passata, "out", lambda cmd: "")
+    monkeypatch.setattr(passata, "out", lambda _: "")
     with pytest.raises(SystemExit):
         passata.default_gpg_id()
 

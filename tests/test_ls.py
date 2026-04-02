@@ -17,44 +17,47 @@
 
 """Tests for passata ls."""
 
-from pathlib import Path
 from textwrap import dedent
+
+import pytest
 
 from tests.helpers import run
 
 
-def test_ls_db(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_ls_db() -> None:
     result = run(["ls"])
-    assert result.output == dedent(
-        """\
+
+    assert result.output == dedent("""\
         internet
         ├── github
         └── reddit
-        """
-    )
+    """)
 
 
-def test_ls_group(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_ls_group() -> None:
     result = run(["ls", "internet"])
-    assert result.output == dedent(
-        """\
+
+    assert result.output == dedent("""\
         github
         reddit
-        """
-    )
+    """)
 
 
-def test_ls_no_tree(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_ls_no_tree() -> None:
     result = run(["ls", "--no-tree"])
-    assert result.output == dedent(
-        """\
+
+    assert result.output == dedent("""\
         internet/github
         internet/reddit
-        """
-    )
+    """)
 
 
-def test_ls_nonexistent_group(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_ls_nonexistent_group() -> None:
     result = run(["ls", "nonexistent"])
+
     assert isinstance(result.exception, SystemExit)
     assert result.output == "nonexistent not found\n"
