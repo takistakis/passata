@@ -120,10 +120,24 @@ def echo(data: str) -> None:
     click.echo_via_pager(data)
 
 
+def send_notification(message: str) -> None:
+    """Send a notification with the given message."""
+    command = (
+        [
+            "osascript",
+            "-e",
+            f'display notification "{message}" with title "passata"',
+        ]
+        if sys.platform == "darwin"
+        else ["notify-send", "-i", "dialog-warning", "passata", message]
+    )
+
+    call(command)
+
+
 def die(message: str) -> None:
     """Send a notification with the given message and exit."""
-    icon = "dialog-warning"
-    call(["notify-send", "-i", icon, "passata", message])
+    send_notification(message)
     sys.exit(1)
 
 
@@ -977,7 +991,8 @@ def edit(obj: Obj, name: str | None, editor: str) -> None:
             # read it one last time and handle it properly.
             try:
                 data = to_dict(updated)
-            except yaml.scanner.ScannerError:
+            except yaml.error.YAMLError:
+                send_notification("Invalid yaml, changes not saved")
                 return
             if not data:
                 return
