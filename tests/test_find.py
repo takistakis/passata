@@ -18,106 +18,105 @@
 """Tests for passata find."""
 
 from collections.abc import Callable
-from pathlib import Path
 from textwrap import dedent
+
+import pytest
 
 from tests.helpers import clipboard, run
 
 
-def test_find(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_find() -> None:
     result = run(["find", "red"])
-    assert result.output == dedent(
-        """\
+
+    assert result.output == dedent("""\
         internet
         └── reddit
-        """
-    )
+    """)
 
 
-def test_find_multiple(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_find_multiple() -> None:
     result = run(["find", "red", "git"])
-    assert result.output == dedent(
-        """\
+
+    assert result.output == dedent("""\
         internet
         ├── github
         └── reddit
-        """
-    )
+    """)
 
 
-def test_find_multiple_clip(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_find_multiple_clip() -> None:
     result = run(["find", "red", "git", "--clip"])
-    assert result.output == dedent(
-        """\
+
+    assert result.output == dedent("""\
         internet
         ├── github
         └── reddit
 
         Copied password of internet/github to clipboard.
-        """
-    )
+    """)
     assert clipboard() == "gh"
 
 
-def test_find_show(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_find_show() -> None:
     result = run(["find", "red", "--print"])
-    assert result.output == dedent(
-        """\
+
+    assert result.output == dedent("""\
         internet:
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
 
 
-def test_find_no_results(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_find_no_results() -> None:
     result = run(["find", "asdf"])
     assert result.output == ""
 
 
-def test_find_in_keyword(db: Path, editor: Callable) -> None:
+@pytest.mark.usefixtures("db")
+def test_find_in_keyword(editor: Callable) -> None:
     editor(
-        updated=dedent(
-            """
-            username: user
-            password: pass
-            autotype: <username> Return !1.5 <password> Return
-            keywords:
-            - youtube
-            - gmail
-            """
-        )
+        updated=dedent("""
+        username: user
+        password: pass
+        autotype: <username> Return !1.5 <password> Return
+        keywords:
+        - youtube
+        - gmail
+    """),
     )
     run(["edit", "group/google"])
 
     result = run(["find", "mail"])
-    assert result.output == dedent(
-        """\
+
+    assert result.output == dedent("""\
         group
         └── google (gmail)
-        """
-    )
+    """)
 
 
-def test_find_show_in_keyword(db: Path, editor: Callable) -> None:
+@pytest.mark.usefixtures("db")
+def test_find_show_in_keyword(editor: Callable) -> None:
     editor(
-        updated=dedent(
-            """\
-            username: user
-            password: pass
-            autotype: <username> Return !1.5 <password> Return
-            keywords:
-            - youtube
-            - gmail
-            """
-        )
+        updated=dedent("""\
+        username: user
+        password: pass
+        autotype: <username> Return !1.5 <password> Return
+        keywords:
+        - youtube
+        - gmail
+    """),
     )
     run(["edit", "group/google"])
 
     result = run(["find", "mail", "--print"])
-    assert result.output == dedent(
-        """\
+
+    assert result.output == dedent("""\
         group:
           google (gmail):
             username: user
@@ -126,5 +125,4 @@ def test_find_show_in_keyword(db: Path, editor: Callable) -> None:
             keywords:
             - youtube
             - gmail
-        """
-    )
+    """)

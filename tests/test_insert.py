@@ -22,21 +22,23 @@ from pathlib import Path
 from textwrap import dedent
 
 import click
-from pytest import MonkeyPatch
+import pytest
 
 from tests.helpers import read, run
 
 
-def test_insert_to_group(db: Path) -> None:
+@pytest.mark.usefixtures("db")
+def test_insert_to_group() -> None:
     result = run(["insert", "group", "--password=pass"])
+
     assert isinstance(result.exception, SystemExit)
     assert result.output == "group is a group\n"
 
 
 def test_insert_entry(db: Path) -> None:
     run(["insert", "group/test", "--password=pass"])
-    assert read(db) == dedent(
-        """\
+
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -47,14 +49,13 @@ def test_insert_entry(db: Path) -> None:
         group:
           test:
             password: pass
-        """
-    )
+    """)
 
 
 def test_insert_force_update(db: Path) -> None:
     run(["insert", "internet/reddit", "--force", "--password=newpass"])
-    assert read(db) == dedent(
-        """\
+
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -63,15 +64,15 @@ def test_insert_force_update(db: Path) -> None:
             password: newpass
             username: sakis
             old_password: rdt
-        """
-    )
+    """)
 
 
-def test_insert_confirm_update(monkeypatch: MonkeyPatch, db: Path) -> None:
-    monkeypatch.setattr(click, "confirm", lambda m: True)
+def test_insert_confirm_update(monkeypatch: pytest.MonkeyPatch, db: Path) -> None:
+    monkeypatch.setattr(click, "confirm", lambda _: True)
+
     run(["insert", "internet/reddit", "--password=newpass"])
-    assert read(db) == dedent(
-        """\
+
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -80,16 +81,19 @@ def test_insert_confirm_update(monkeypatch: MonkeyPatch, db: Path) -> None:
             password: newpass
             username: sakis
             old_password: rdt
-        """
-    )
+    """)
 
 
-def test_insert_do_not_confirm_update(monkeypatch: MonkeyPatch, db: Path) -> None:
-    monkeypatch.setattr(click, "confirm", lambda m: False)
+def test_insert_do_not_confirm_update(
+    monkeypatch: pytest.MonkeyPatch,
+    db: Path,
+) -> None:
+    monkeypatch.setattr(click, "confirm", lambda _: False)
+
     result = run(["insert", "internet/reddit", "--password=newpass"])
+
     assert result.exception is None
-    assert read(db) == dedent(
-        """\
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -97,16 +101,16 @@ def test_insert_do_not_confirm_update(monkeypatch: MonkeyPatch, db: Path) -> Non
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
 
 
 def test_insert_no_password_no_backup(db: Path, editor: Callable) -> None:
     editor(updated="username: user\n")
     run(["edit", "group/test"])
+
     run(["insert", "group/test", "--password=pass"])
-    assert read(db) == dedent(
-        """\
+
+    assert read(db) == dedent("""\
         internet:
           github:
             password: gh
@@ -118,14 +122,13 @@ def test_insert_no_password_no_backup(db: Path, editor: Callable) -> None:
           test:
             username: user
             password: pass
-        """
-    )
+    """)
 
 
 def test_insert_sort(db: Path) -> None:
     run(["insert", "internet/asdf", "--password=pass"])
-    assert read(db) == dedent(
-        """\
+
+    assert read(db) == dedent("""\
         internet:
           asdf:
             password: pass
@@ -135,5 +138,4 @@ def test_insert_sort(db: Path) -> None:
           reddit:
             password: rdt
             username: sakis
-        """
-    )
+    """)
