@@ -18,6 +18,7 @@
 """Tests for passata find."""
 
 from collections.abc import Callable
+from pathlib import Path
 from textwrap import dedent
 
 import pytest
@@ -126,3 +127,10 @@ def test_find_show_in_keyword(editor: Callable) -> None:
             - youtube
             - gmail
     """)
+
+
+def test_find_clip_no_password(db: Path) -> None:
+    db.write_text(db.read_text() + "mail:\n  gmail:\n    username: user\n")
+    result = run(["find", "gmail", "--clip"])
+    assert isinstance(result.exception, SystemExit)
+    assert result.output.endswith("does not have a password\n")
