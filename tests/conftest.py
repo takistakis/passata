@@ -28,6 +28,16 @@ import pytest
 import passata
 
 
+@pytest.fixture(autouse=True)
+def no_schedule_clear_clipboard(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent background clipboard-clearing processes from spawning during tests.
+
+    Without this, orphaned subprocesses from previous runs fire after ~45 s and
+    clear the clipboard in the middle of subsequent test runs, causing flakiness.
+    """
+    monkeypatch.setattr(passata, "schedule_clear_clipboard", lambda _: None)
+
+
 @pytest.fixture
 def db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(passata.DB, "encrypt", lambda _, x, __: x)
