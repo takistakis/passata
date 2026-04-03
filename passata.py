@@ -32,7 +32,6 @@ import string
 import subprocess
 import sys
 import tempfile
-import textwrap
 import time
 from contextlib import suppress
 from pathlib import Path
@@ -177,24 +176,13 @@ def unlock_file(path: Path) -> None:
 
 
 def schedule_clear_clipboard(timeout: int) -> None:
-    """Clear clipboard after timeout seconds.
-
-    Write a bash script in a temporary file and execute it in the background.
-    """
-    script = textwrap.dedent(f"""\
-        #!/bin/bash
-        sleep {timeout}
-        echo -n '' | pbcopy
-        rm -f "$0"
-    """)
-
-    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".sh") as f:
-        f.write(script)
-        scriptpath = f.name
-
-    Path(scriptpath).chmod(0o755)
-
-    subprocess.Popen(scriptpath, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    """Clear clipboard after timeout seconds using a detached background process."""
+    subprocess.Popen(
+        ["/bin/sh", "-c", f"sleep {timeout} && printf '' | pbcopy"],
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def to_clipboard(data: str, timeout: int) -> None:
