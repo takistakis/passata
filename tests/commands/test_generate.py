@@ -18,6 +18,7 @@
 """Tests for passata generate."""
 
 import os
+import string
 import sys
 from collections.abc import Generator
 from pathlib import Path
@@ -35,13 +36,12 @@ ALPHANUMERIC = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 SYMBOLS = r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"""
 
 
-def test_generate_password_length_no_symbols() -> None:
+def test_generate_password_charset_alnum() -> None:
     password = passata.generate_password(
         length=10,
         entropy=None,
-        symbols=False,
-        words=False,
-        wordpath=None,
+        charset="alnum",
+        wordlist=None,
         force=False,
     )
 
@@ -50,13 +50,12 @@ def test_generate_password_length_no_symbols() -> None:
     assert not any(char in password for char in SYMBOLS)
 
 
-def test_generate_password_length_symbols() -> None:
+def test_generate_password_charset_full() -> None:
     password = passata.generate_password(
         length=17,
         entropy=None,
-        symbols=True,
-        words=False,
-        wordpath=None,
+        charset="full",
+        wordlist=None,
         force=False,
     )
 
@@ -64,26 +63,50 @@ def test_generate_password_length_symbols() -> None:
     assert all(char in ALPHANUMERIC + SYMBOLS for char in password)
 
 
-def test_generate_password_entropy_no_symbols() -> None:
+def test_generate_password_charset_letters() -> None:
+    password = passata.generate_password(
+        length=15,
+        entropy=None,
+        charset="letters",
+        wordlist=None,
+        force=False,
+    )
+
+    assert len(password) == 15
+    assert all(char in string.ascii_letters for char in password)
+
+
+def test_generate_password_charset_digits() -> None:
+    password = passata.generate_password(
+        length=12,
+        entropy=None,
+        charset="digits",
+        wordlist=None,
+        force=False,
+    )
+
+    assert len(password) == 12
+    assert all(char in string.digits for char in password)
+
+
+def test_generate_password_entropy_alnum() -> None:
     password = passata.generate_password(
         length=None,
         entropy=128,
-        symbols=False,
-        words=False,
-        wordpath=None,
+        charset="alnum",
+        wordlist=None,
         force=False,
     )
 
     assert len(password) == 22
 
 
-def test_generate_password_entropy_symbols() -> None:
+def test_generate_password_entropy_full() -> None:
     password = passata.generate_password(
         length=None,
         entropy=128,
-        symbols=True,
-        words=False,
-        wordpath=None,
+        charset="full",
+        wordlist=None,
         force=False,
     )
 
@@ -98,9 +121,8 @@ def test_generate_password_short(monkeypatch: pytest.MonkeyPatch) -> None:
         password = passata.generate_password(
             length=4,
             entropy=None,
-            symbols=True,
-            words=False,
-            wordpath=None,
+            charset="full",
+            wordlist=None,
             force=False,
         )
 
@@ -110,9 +132,8 @@ def test_generate_password_short(monkeypatch: pytest.MonkeyPatch) -> None:
     password = passata.generate_password(
         length=4,
         entropy=None,
-        symbols=True,
-        words=False,
-        wordpath=None,
+        charset="full",
+        wordlist=None,
         force=False,
     )
 
@@ -127,9 +148,8 @@ def test_generate_passphrase(tmp_path: Path) -> None:
     passphrase = passata.generate_password(
         length=5,
         entropy=None,
-        symbols=True,
-        words=True,
-        wordpath=wordpath,
+        charset="full",
+        wordlist=str(wordpath),
         force=True,
     )
 
@@ -145,9 +165,26 @@ def test_generate_passphrase_file_not_found(tmp_path: Path) -> None:
         passata.generate_password(
             length=5,
             entropy=None,
-            symbols=True,
-            words=True,
-            wordpath=wordpath,
+            charset="full",
+            wordlist=str(wordpath),
+            force=True,
+        )
+
+
+def test_generate_passphrase_file_removed_after_resolve(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test FileNotFoundError when wordlist disappears after resolve."""
+    missing = tmp_path / "gone.txt"
+    monkeypatch.setattr(passata, "resolve_wordlist", lambda _: missing)
+
+    with pytest.raises(SystemExit, match="No such file or directory"):
+        passata.generate_password(
+            length=5,
+            entropy=None,
+            charset="full",
+            wordlist="gone",
             force=True,
         )
 
@@ -293,34 +330,53 @@ def test_generate_put_in_existing_entry_clip(db: Path) -> None:
     """)
 
 
-class TestGetWordpath:
-    """Test get_wordpath function."""
+class TestResolveWordlist:
+    """Test resolve_wordlist function."""
 
-    def test_wordpath_not_none(self) -> None:
-        """Test that the function returns the provided wordpath if it's not None."""
-        wordpath = Path("/path/to/wordlist.txt")
-        assert passata.get_wordpath(wordpath) == wordpath
+    def test_existing_file_path(self, tmp_path: Path) -> None:
+        """Test that an existing file path is returned as-is."""
+        wordpath = tmp_path / "wordlist.txt"
+        wordpath.write_text("word1\nword2\n")
+        assert passata.resolve_wordlist(str(wordpath)) == wordpath
 
-    def test_wordpath_in_directories(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that the function returns the wordpath if it exists."""
-        monkeypatch.setattr("os.path.exists", lambda _: True)
-        wordpath = passata.get_wordpath(None)
-        assert str(wordpath).endswith("eff_large_wordlist.txt")
-        assert any(
-            str(wordpath).startswith(directory)
-            for directory in [
-                "/usr/local/share/passata",
-                "/usr/share/passata",
-            ]
-        )
+    def test_name_resolved_in_directory(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test that a wordlist name is resolved from known directories."""
+        (tmp_path / "bip39.txt").write_text("word1\nword2\n")
+        monkeypatch.setattr(passata, "WORDLIST_DIRS", [tmp_path])
+        assert passata.resolve_wordlist("bip39") == tmp_path / "bip39.txt"
 
-    def test_wordpath_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that the function exits if the wordpath is not found."""
-        monkeypatch.setattr("passata.Path.exists", lambda _: False)
+    def test_name_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that the function exits if the wordlist is not found."""
+        monkeypatch.setattr(passata, "WORDLIST_DIRS", [])
         with pytest.raises(SystemExit) as cm:
-            passata.get_wordpath(None)
+            passata.resolve_wordlist("nonexistent")
+        assert "not found" in str(cm.value)
 
-        assert str(cm.value) == "--words option requires a wordpath"
+
+class TestAvailableWordlists:
+    """Test available_wordlists function."""
+
+    def test_lists_wordlists(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test that available wordlists are listed."""
+        (tmp_path / "bip39.txt").write_text("word1\n")
+        (tmp_path / "eff_large_wordlist.txt").write_text("word1\n")
+        monkeypatch.setattr(passata, "WORDLIST_DIRS", [tmp_path])
+        names = passata.available_wordlists()
+        assert "bip39" in names
+        assert "eff_large_wordlist" in names
+
+    def test_empty_when_no_dirs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that an empty list is returned when no directories exist."""
+        monkeypatch.setattr(passata, "WORDLIST_DIRS", [Path("/nonexistent")])
+        assert passata.available_wordlists() == []
 
 
 @pytest.mark.usefixtures("patch")
@@ -332,3 +388,14 @@ def test_generate_length_overrides_config_entropy(db: Path) -> None:  # noqa: AR
     assert result.exit_code == 0
     assert result.exception is None
     assert result.output == "xxxxxxxxxx\n"
+
+
+@pytest.mark.usefixtures("patch")
+def test_generate_charset_overrides_config_wordlist(db: Path) -> None:  # noqa: ARG001
+    """When wordlist is from config and charset is on CLI, charset takes precedence."""
+    confpath = Path(os.environ["PASSATA_CONFIG_PATH"])
+    confpath.write_text(confpath.read_text() + "generate:\n  wordlist: eff\n")
+    result = run(["generate", "--charset", "alnum", "--no-clip"])
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert result.output == "xxxxxxxxxxxxxxxxxxxx\n"
