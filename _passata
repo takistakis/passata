@@ -93,13 +93,10 @@ _passata() {
             '(-t --timeout)'{-t,--timeout}'[Number of seconds until the clipboard is cleared]:int:' \
             '(-l --length -e --entropy)'{-l,--length}'[Length of the generated password]:int:' \
             '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given minimum bits of entropy]:float:' \
-            '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-s,--symbols}'[Use symbols in the generated password]' \
-            '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-S,--no-symbols}'[Do not use symbols in the generated password]' \
-            '(-s --symbols -S --no-symbols -w --words -W --no-words)'{-w,--words}'[Generate diceware-like passphrase]' \
-            '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-W,--no-words}'[Do not generate diceware-like passphrase]' \
-            '(-s --symbols -S --no-symbols --W --no-words --wordpath)--wordpath[List of words for passphrase generation]:file:_files' \
-            '(-h --help)'{-h,--help}'[Show help message and exit]'
-          _complete_entries
+            '(-s --charset -w --wordlist)'{-s,--charset}'[Character set for password generation]:charset:(letters digits alnum full)' \
+            '(-s --charset -w --wordlist)'{-w,--wordlist}'[Generate passphrase using a wordlist (name or path)]:wordlist:_complete_wordlists' \
+            '(-h --help)'{-h,--help}'[Show help message and exit]' \
+            '1::name:_complete_entries'
           ;;
 
         edit)
@@ -136,6 +133,18 @@ _complete_groups() {
 _complete_entries() {
   local IFS=$'\n'
   _values 'entry' ${$(passata ls --no-tree 2>/dev/null):-""}
+}
+
+_complete_wordlists() {
+  local -a wordlists
+  local dir
+  for dir in /usr/local/share/passata /usr/share/passata; do
+    if [[ -d "$dir" ]]; then
+      wordlists+=($dir/*.txt(N:t:r))
+    fi
+  done
+  (( $#wordlists )) && _describe 'wordlist' wordlists
+  _files
 }
 
 _complete_keys() {

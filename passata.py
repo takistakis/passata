@@ -787,55 +787,81 @@ def insert(obj: Obj, name: str, force: bool, password: str) -> None:
     do_insert(obj, name, password, force)
 
 
-def get_wordpath(wordpath: Path | None) -> Path:
-    """Return the path of the diceware words file."""
-    if wordpath is not None:
-        return wordpath
+WORDLIST_DIRS = [
+    Path(__file__).resolve().parent / "wordlists",
+    Path("/usr/local/share/passata"),
+    Path("/usr/share/passata"),
+]
 
-    filename = "eff_large_wordlist.txt"
-    directories = ["/usr/local/share/passata", "/usr/share/passata"]
-    for directory in directories:
-        wordpath = Path(directory) / filename
-        if wordpath.exists():
-            return wordpath
+CHARSETS = {
+    "letters": string.ascii_letters,
+    "digits": string.digits,
+    "alnum": string.ascii_letters + string.digits,
+    "full": string.ascii_letters + string.digits + string.punctuation,
+}
 
-    sys.exit("--words option requires a wordpath")
+
+def available_wordlists() -> list[str]:
+    """Return the names of available wordlists."""
+    names: list[str] = []
+    for directory in WORDLIST_DIRS:
+        if directory.is_dir():
+            for path in sorted(directory.glob("*.txt")):
+                name = path.stem
+                if name not in names:
+                    names.append(name)
+    return names
+
+
+def resolve_wordlist(wordlist: str) -> Path:
+    """Resolve a wordlist name or path to a file path."""
+    # If it's a path that exists, use it directly
+    path = Path(wordlist).expanduser()
+    if path.exists():
+        return path
+
+    # Try as a name in known directories
+    for directory in WORDLIST_DIRS:
+        for candidate in [directory / wordlist, directory / f"{wordlist}.txt"]:
+            if candidate.exists():
+                return candidate
+
+    names = available_wordlists()
+    hint = f" Available: {', '.join(names)}" if names else ""
+    sys.exit(f"Wordlist '{wordlist}' not found.{hint}")
 
 
 def generate_password(
     length: int | None,
     entropy: float | None,
-    symbols: bool,
-    words: bool,
-    wordpath: Path | None,
+    charset: str,
+    wordlist: str | None,
     force: bool,
 ) -> str:
     """Generate a random password."""
     choice = random.SystemRandom().choice
     pool: Sequence
-    if words:
-        wordpath = get_wordpath(wordpath)
+    if wordlist is not None:
+        wordlist_path = resolve_wordlist(wordlist)
         try:
-            pool = wordpath.expanduser().read_text().strip().split("\n")
+            pool = wordlist_path.read_text().strip().split("\n")
         except FileNotFoundError:
-            sys.exit(f"{wordpath}: No such file or directory")
+            sys.exit(f"{wordlist_path}: No such file or directory")
     else:
-        chargroups = [string.ascii_letters, string.digits]
-        if symbols:
-            chargroups.append(string.punctuation)
-        pool = "".join(chargroups)
+        pool = CHARSETS[charset]
 
     if entropy is not None:
         length = math.ceil(entropy / math.log2(len(pool)))
     else:
         assert length is not None
-        entropy = length * math.log2(len(pool))
+
+    entropy = length * math.log2(len(pool))
 
     if entropy < ENTROPY_WARNING_THRESHOLD:
         msg = f"Generate password with only {entropy:.3f} bits of entropy?"
         confirm(msg, force)
 
-    sep = " " if words else ""
+    sep = " " if wordlist is not None else ""
     password = sep.join(choice(pool) for _ in range(length))
     click.echo(f"Generated password with {entropy:.3f} bits of entropy")
     return password
@@ -875,21 +901,16 @@ def generate_password(
     ),
 )
 @click.option(
-    "-s/-S",
-    "--symbols/--no-symbols",
-    default=True,
-    help="Use symbols in the generated password.",
+    "-s",
+    "--charset",
+    type=click.Choice(list(CHARSETS), case_sensitive=False),
+    default="full",
+    help="Character set for password generation.",
 )
 @click.option(
-    "-w/-W",
-    "--words/--no-words",
-    is_flag=True,
-    help="Generate diceware-like passphrase.",
-)
-@click.option(
-    "--wordpath",
-    type=click.Path(dir_okay=False, path_type=Path),
-    help="List of words for passphrase generation.",
+    "-w",
+    "--wordlist",
+    help="Generate passphrase using a wordlist (name or path).",
 )
 @click.pass_context
 def generate(
@@ -901,9 +922,8 @@ def generate(
     timeout: int,
     length: int | None,
     entropy: float | None,
-    symbols: bool,
-    words: bool,
-    wordpath: Path | None,
+    charset: str,
+    wordlist: str | None,
 ) -> None:
     """Generate a random password.
 
@@ -912,15 +932,22 @@ def generate(
     """
     obj: Obj = ctx.obj
 
-    # Entropy takes precedence over length but cli params take precedence over
-    # config.
+    source = ctx.get_parameter_source
+    # Entropy takes precedence over length and wordlist takes precedence over
+    # charset, but cli params always take precedence over config.
     if (
-        ctx.get_parameter_source("entropy") == click.core.ParameterSource.DEFAULT_MAP
-        and ctx.get_parameter_source("length") == click.core.ParameterSource.COMMANDLINE
+        source("entropy") == click.core.ParameterSource.DEFAULT_MAP
+        and source("length") == click.core.ParameterSource.COMMANDLINE
     ):
         entropy = None
 
-    password = generate_password(length, entropy, symbols, words, wordpath, force)
+    if (
+        source("wordlist") == click.core.ParameterSource.DEFAULT_MAP
+        and source("charset") == click.core.ParameterSource.COMMANDLINE
+    ):
+        wordlist = None
+
+    password = generate_password(length, entropy, charset, wordlist, force)
 
     if name:
         old_password = do_insert(obj, name, password, force)
