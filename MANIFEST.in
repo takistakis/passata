@@ -6,6 +6,6 @@ include pyproject.toml
 include poetry.lock
 include Makefile
 include tests/*.py
-include eff_large_wordlist.txt
+include wordlists/*.txt
 
 exclude .*
