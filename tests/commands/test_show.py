@@ -43,10 +43,10 @@ def test_show_nonexistent_entry() -> None:
 
 
 @pytest.mark.usefixtures("db")
-def test_show_entry_three_levels_deep() -> None:
+def test_show_deep_path_not_found() -> None:
     result = run(["show", "one/two/three"])
     assert isinstance(result.exception, SystemExit)
-    assert result.output == "one/two/three is nested too deeply\n"
+    assert result.output == "one/two/three not found\n"
 
 
 @pytest.mark.usefixtures("db")
@@ -67,7 +67,7 @@ def test_show_clipboard_whole_database() -> None:
 def test_show_clipboard_whole_group() -> None:
     result = run(["show", "internet", "--clip"])
     assert isinstance(result.exception, SystemExit)
-    assert result.output == "Can't put the entire group to clipboard\n"
+    assert result.output == "Can't put a group to clipboard\n"
 
 
 @pytest.mark.usefixtures("db")
@@ -140,3 +140,58 @@ def test_show_clipboard_no_password(db: Path) -> None:
     result = run(["show", "mail/gmail", "--clip"])
     assert isinstance(result.exception, SystemExit)
     assert result.output == "mail/gmail does not have a password\n"
+
+
+# Tests for nested/filesystem-like paths
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_show_nested_entry() -> None:
+    result = run(["show", "internet/social/reddit"])
+    assert result.output == dedent("""\
+        password: rdt
+        username: sakis
+    """)
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_show_top_level_entry() -> None:
+    result = run(["show", "server"])
+    assert result.output == dedent("""\
+        password: srv
+        username: admin
+    """)
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_show_nested_group() -> None:
+    result = run(["show", "internet/social"])
+    assert result.output == dedent("""\
+        reddit:
+          password: rdt
+          username: sakis
+        twitter:
+          password: twt
+          username: takis
+    """)
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_show_nested_clip() -> None:
+    result = run(["show", "internet/social/reddit", "--clip"])
+    assert result.output == ""
+    assert clipboard() == "rdt"
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_show_top_level_entry_clip() -> None:
+    result = run(["show", "server", "--clip"])
+    assert result.output == ""
+    assert clipboard() == "srv"
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_show_nested_group_clip() -> None:
+    result = run(["show", "internet/social", "--clip"])
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "Can't put a group to clipboard\n"
