@@ -42,8 +42,22 @@ def test_mv_entry_to_entry(db: Path) -> None:
     """)
 
 
-def test_mv_entry_to_group(db: Path) -> None:
+def test_mv_entry_to_new_name(db: Path) -> None:
     run(["mv", "internet/reddit", "new"])
+
+    assert read(db) == dedent("""\
+        internet:
+          github:
+            password: gh
+            username: takis
+        new:
+          password: rdt
+          username: sakis
+    """)
+
+
+def test_mv_entry_to_group(db: Path) -> None:
+    run(["mv", "internet/reddit", "new/"])
 
     assert read(db) == dedent("""\
         internet:
@@ -66,7 +80,7 @@ def test_mv_entries_to_entry() -> None:
 
 
 def test_mv_entries_to_group(db: Path) -> None:
-    run(["mv", "internet/reddit", "internet/github", "new"])
+    run(["mv", "internet/reddit", "internet/github", "new/"])
 
     assert read(db) == dedent("""\
         new:
@@ -98,7 +112,7 @@ def test_mv_group_to_entry() -> None:
     result = run(["mv", "internet", "internet/github"])
 
     assert isinstance(result.exception, SystemExit)
-    assert result.output == "internet/github is not a group\n"
+    assert result.output == "internet/github already exists\n"
 
 
 @pytest.mark.usefixtures("db")
@@ -152,3 +166,52 @@ def test_mv_overwrite(monkeypatch: pytest.MonkeyPatch, db: Path) -> None:
             password: rdt
             username: sakis
     """)
+
+
+# Tests for nested/filesystem-like paths
+
+
+def test_mv_nested_entry(nested_db: Path) -> None:
+    run(["mv", "internet/social/reddit", "internet/reddit"])
+
+    content = nested_db.read_text()
+    assert "internet:\n" in content
+    # reddit should be directly under internet now
+    assert "  reddit:" in content
+
+
+def test_mv_entry_to_nested_group(nested_db: Path) -> None:
+    run(["mv", "internet/github", "internet/social/"])
+
+    content = nested_db.read_text()
+    # github should now be under social
+    assert "social:" in content
+    assert "github:" in content
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_mv_into_own_subdirectory() -> None:
+    result = run(["mv", "internet", "internet/social/deep"])
+
+    assert isinstance(result.exception, SystemExit)
+    assert "Cannot move" in result.output
+
+
+def test_mv_entry_to_root(nested_db: Path) -> None:
+    run(["mv", "internet/github", "/"])
+
+    content = nested_db.read_text()
+    # github should be at the top level now, not under internet
+    assert "\ngithub:\n" in content or content.startswith("github:\n")
+    assert "internet:" in content
+
+
+def test_mv_entries_to_root(nested_db: Path) -> None:
+    run(["mv", "internet/social/reddit", "internet/social/twitter", "/"])
+
+    content = nested_db.read_text()
+    # Both should be at top level now
+    assert "reddit:" in content
+    assert "twitter:" in content
+    # social group should be gone (both children removed)
+    assert "social" not in content

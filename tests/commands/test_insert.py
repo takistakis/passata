@@ -28,11 +28,28 @@ from tests.helpers import read, run
 
 
 @pytest.mark.usefixtures("db")
-def test_insert_to_group() -> None:
-    result = run(["insert", "group", "--password=pass"])
+def test_insert_top_level_entry(db: Path) -> None:
+    run(["insert", "toplevel", "--password=pass"])
+
+    assert read(db) == dedent("""\
+        internet:
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: rdt
+            username: sakis
+        toplevel:
+          password: pass
+    """)
+
+
+@pytest.mark.usefixtures("db")
+def test_insert_to_existing_group() -> None:
+    result = run(["insert", "internet", "--password=pass"])
 
     assert isinstance(result.exception, SystemExit)
-    assert result.output == "group is a group\n"
+    assert result.output == "internet is a group\n"
 
 
 def test_insert_entry(db: Path) -> None:
@@ -139,3 +156,39 @@ def test_insert_sort(db: Path) -> None:
             password: rdt
             username: sakis
     """)
+
+
+# Tests for nested/filesystem-like paths
+
+
+def test_insert_deeply_nested(db: Path) -> None:
+    run(["insert", "a/b/c/d", "--password=deep"])
+
+    assert read(db) == dedent("""\
+        internet:
+          github:
+            password: gh
+            username: takis
+          reddit:
+            password: rdt
+            username: sakis
+        a:
+          b:
+            c:
+              d:
+                password: deep
+    """)
+
+
+def test_insert_into_existing_nested_group(nested_db: Path) -> None:
+    run(["insert", "internet/social/facebook", "--password=fb"])
+
+    assert "facebook" in nested_db.read_text()
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_insert_to_existing_nested_group_error() -> None:
+    result = run(["insert", "internet/social", "--password=pass"])
+
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "internet/social is a group\n"

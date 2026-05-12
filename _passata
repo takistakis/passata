@@ -106,7 +106,15 @@ _passata() {
           _complete_entries
           ;;
 
-        rm|mv)
+        rm)
+          _arguments -s : \
+            '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
+            '(-r --recursive)'{-r,--recursive}'[Remove groups recursively]' \
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
+          _complete_entries
+          ;;
+
+        mv)
           _arguments -s : \
             '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
@@ -127,7 +135,7 @@ _passata() {
 
 _complete_groups() {
   local IFS=$'\n'
-  _values 'group' ${$(passata ls 2>/dev/null | grep "^\w"):-""}
+  _values 'group' ${$(passata ls 2>/dev/null | grep -E "^[^ ├└│]"):-""}
 }
 
 _complete_entries() {
