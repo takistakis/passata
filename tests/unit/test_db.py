@@ -85,18 +85,33 @@ class TestValidate:
                 "group1": ["not", "a", "dict"],
             },
         )
-        with pytest.raises(SystemExit, match="Group 'group1' is not a dict"):
+        with pytest.raises(SystemExit, match="'group1' is not a dict"):
             db.validate()
 
     def test_validate_entry_not_dict(self) -> None:
         db = self.make_db_with_structure(
             {
+                "toplevel": "not a dict",
+            },
+        )
+        with pytest.raises(SystemExit, match="'toplevel' is not a dict"):
+            db.validate()
+
+    def test_validate_mixed_entry(self) -> None:
+        db = self.make_db_with_structure(
+            {
                 "group1": {
-                    "entry1": "not a dict",
+                    "entry1": {
+                        "password": "pass",
+                        "nested": {"key": "value"},
+                    },
                 },
             },
         )
-        with pytest.raises(SystemExit, match="Entry 'entry1' is not a dict"):
+        with pytest.raises(
+            SystemExit,
+            match="Entry 'group1/entry1' has mixed dict/non-dict values",
+        ):
             db.validate()
 
 

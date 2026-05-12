@@ -54,8 +54,8 @@ ENTROPY_WARNING_THRESHOLD = 32
 Obj = dict[str, Any]
 Config = dict[str, Any]
 Entry = dict[str, Any]
-Group = dict[str, Entry]
-Database = dict[str, Group]
+Node = dict[str, Any]  # Either an Entry (leaf) or a group (nested dicts)
+Database = dict[str, Node]
 
 
 # Utilities
@@ -213,27 +213,39 @@ def confirm_overwrite(filename: Path, force: bool) -> None:
         confirm(f"Overwrite {filename}?", force)
 
 
-def isgroup(name: str) -> bool:
-    """Return whether `name` is in 'groupname' or 'groupname/' format."""
-    return "/" not in name or not name.split("/")[1]
+def is_entry(node: Node) -> bool:
+    """Return whether a node is an entry (leaf) rather than a group.
+
+    An entry has at least one non-dict value (e.g. password, username).
+    A group has only dict values (each being an entry or sub-group).
+    An empty dict is treated as an empty group.
+    """
+    if not node:
+        return False
+    return any(not isinstance(v, dict) for v in node.values())
 
 
-def split(name: str | None) -> tuple[str | None, str | None]:
-    """Split `name` to group name and entry name."""
-    if not name:
-        groupname, entryname = None, None
-    elif isgroup(name):
-        groupname, entryname = name.rstrip("/"), None
-    else:
-        try:
-            groupname, entryname = name.split("/")
-        except ValueError:
-            sys.exit(f"{name} is nested too deeply")
+def split_path(name: str) -> list[str]:
+    """Split a path into its components.
 
-    return groupname, entryname
+    Strips a single trailing slash (group hint) but rejects leading
+    slashes and empty interior components.
+    """
+    stripped = name.rstrip("/")
+    if not stripped:
+        return []
+    parts = stripped.split("/")
+    if any(p == "" for p in parts):
+        sys.exit(f"Invalid path: {name}")
+    return parts
 
 
-def to_dict(data: str | None) -> dict:
+def path_is_group_hint(name: str) -> bool:
+    """Return whether the path explicitly refers to a group (trailing slash)."""
+    return name.endswith("/")
+
+
+def to_dict(data: str | None) -> Node:
     """Turn yaml string to dict."""
     # Return empty dict for empty string or None
     if not data:
@@ -242,7 +254,7 @@ def to_dict(data: str | None) -> dict:
     return yaml.safe_load(data)
 
 
-def to_string(data: dict | None) -> str:
+def to_string(data: Node | None) -> str:
     """Turn dict to yaml string."""
     # Return empty string for empty dict or None
     if not data:
@@ -302,15 +314,24 @@ class DB:
         self.post_write_hook: Path | None = post_write_hook
         self.registered_post_write_hook: bool = False
 
-    def __iter__(self) -> Iterator[tuple[str, str]]:
-        """Iterate in (group name, entry name) pairs."""
-        for groupname in self.db:
-            for entryname in self.db[groupname]:
-                yield groupname, entryname
+    def __iter__(self) -> Iterator[str]:
+        """Iterate over all entry paths in the database."""
+        yield from self._walk(self.db, "")
+
+    def _walk(self, node: Node, prefix: str) -> Iterator[str]:
+        """Recursively walk the tree yielding paths to entries."""
+        for key, value in node.items():
+            path = f"{prefix}/{key}" if prefix else key
+            if isinstance(value, dict) and not is_entry(value):
+                yield from self._walk(value, path)
+            else:
+                yield path
 
     def groups(self) -> Iterator[str]:
-        """Iterate in group names."""
-        yield from self.db
+        """Iterate over top-level group names."""
+        for key, value in self.db.items():
+            if isinstance(value, dict) and not is_entry(value):
+                yield key
 
     @staticmethod
     def decrypt(path: Path) -> str:  # pragma: no cover
@@ -359,119 +380,156 @@ class DB:
             atexit.register(self.execute_post_write_hook)
             self.registered_post_write_hook = True
 
-    def get(self, name: str | None) -> dict[str, Any] | None:
-        """Return database, group or entry."""
-        groupname, entryname = split(name)
-
-        # Get the whole database
-        if not groupname:
+    def get(self, name: str | None) -> Node | None:
+        """Return database, group or entry at the given path."""
+        if not name or not name.strip("/"):
             return self.db
 
-        # Get a whole group
-        if not entryname:
-            return self.db.get(groupname)
+        parts = split_path(name)
+        node = self.db
+        for part in parts:
+            if not isinstance(node, dict) or part not in node:
+                return None
+            node = node[part]
 
-        # Entry should exist
-        if groupname not in self.db:
-            return None
+        return node
 
-        # Get a single entry
-        return self.db[groupname].get(entryname)
-
-    def put(self, name: str | None, subdict: dict | None) -> None:
-        """Add or replace subdict creating group if needed."""
+    def put(self, name: str | None, subdict: Node | None) -> None:
+        """Add or replace subdict, creating intermediate groups as needed."""
         # Remove if given empty dict
         if not subdict:
             self.pop(name)
             return
 
-        groupname, entryname = split(name)
-
         # Put the whole database
-        if not groupname:
+        if not name or not name.strip("/"):
             self.db = subdict
             self.sort()
+            return
 
-        # Put a whole group
-        elif not entryname:
-            self.db[groupname] = subdict
-            self.sort_group(groupname)
+        parts = split_path(name)
 
-        # Put a single entry
-        else:
-            if groupname not in self.db:
-                self.db[groupname] = {}
-            self.db[groupname][entryname] = subdict
-            self.sort_group(groupname)
+        # Navigate to the parent, creating intermediate groups
+        node = self.db
+        for part in parts[:-1]:
+            if part not in node:
+                node[part] = {}
+            elif is_entry(node[part]):
+                sys.exit(f"'{part}' is an entry, cannot create subpath")
+            node = node[part]
 
-    def pop(self, name: str | None, force: bool = False) -> dict | None:
-        """Remove subdict and every empty parent and return it."""
-        groupname, entryname = split(name)
+        # Set the leaf
+        node[parts[-1]] = subdict
 
+        # Sort the parent level
+        sorted_items = sorted(node.items(), key=lambda t: t[0])
+        node.clear()
+        node.update(sorted_items)
+
+    def pop(self, name: str | None, force: bool = False) -> Node | None:
+        """Remove node at path and every empty ancestor, return the removed node."""
         # Remove the whole database
-        if not groupname:
+        if not name or not name.strip("/"):
             confirm("Delete the whole database?", force)
             self.db.clear()
-            # Maybe we should copy and return the original db
-            # for consistency but it's not needed anywhere.
             return None
 
-        # Group should exist
-        if groupname not in self.db:
+        parts = split_path(name)
+
+        # Navigate to the parent, recording the path for cleanup
+        ancestors: list[tuple[Node, str]] = []
+        node = self.db
+        for part in parts[:-1]:
+            if not isinstance(node, dict) or part not in node:
+                return None
+            ancestors.append((node, part))
+            node = node[part]
+
+        leaf = parts[-1]
+        if not isinstance(node, dict) or leaf not in node:
             return None
 
-        # Remove a whole group
-        if not entryname:
-            confirm(f"Delete group '{groupname}'?", force)
-            return self.db.pop(groupname)
+        target = node[leaf]
+        if isinstance(target, dict) and not is_entry(target):
+            confirm(f"Delete group '{name}'?", force)
+        else:
+            confirm(f"Delete '{name}'?", force)
 
-        # Entry should exist
-        if entryname not in self.db[groupname]:
-            return None
+        result = node.pop(leaf)
 
-        # Remove a single entry
-        confirm(f"Delete '{name}'?", force)
-        entry = self.db[groupname].pop(entryname)
-        if not self.db[groupname]:
-            del self.db[groupname]
-        return entry
+        # Clean up empty parent groups
+        for parent_node, key in reversed(ancestors):
+            if not parent_node[key]:
+                del parent_node[key]
 
-    def ls(self, groupname: str | None = None, no_tree: bool = False) -> None:
+        return result
+
+    def ls(self, name: str | None = None, no_tree: bool = False) -> None:
         """List entries in a tree-like format."""
         lines: list[str] = []
-        if groupname:
-            groupname = groupname.rstrip("/")
-            if groupname not in self.groups():
-                sys.exit(f"{groupname} not found")
-            group = self.get(groupname)
-            assert group is not None
-            lines.extend(group)
+        if name:
+            name = name.rstrip("/")
+            node = self.get(name)
+            if node is None:
+                sys.exit(f"{name} not found")
+            if is_entry(node):
+                sys.exit(f"{name} is an entry, not a group")
+            lines.extend(node)
         elif no_tree:
-            for groupname, entryname in self:
-                lines.append(f"{groupname}/{entryname}")
+            lines = list(self)
         else:
-            for groupname in self.groups():
-                lines.append(click.style(groupname, fg="blue", bold=True))
-                group = self.get(groupname)
-                assert group is not None
-                entrynames = list(group)
-                lines.extend([f"├── {entryname}" for entryname in entrynames[:-1]])
-                lines.append(f"└── {entrynames[-1]}")
+            lines = self._render_tree(self.db)
         if lines:
             echo("\n".join(lines))
 
+    def _render_tree(
+        self,
+        node: Node,
+        prefix: str = "",
+        is_root: bool = True,
+    ) -> list[str]:
+        """Render a tree view of the given node."""
+        lines: list[str] = []
+        items = list(node.items())
+        for i, (key, value) in enumerate(items):
+            is_last = i == len(items) - 1
+            is_group_node = isinstance(value, dict) and not is_entry(value)
+
+            if is_root:
+                if is_group_node:
+                    lines.append(click.style(key, fg="blue", bold=True))
+                    lines.extend(self._render_tree(value, "", is_root=False))
+                else:
+                    lines.append(key)
+            else:
+                connector = "└── " if is_last else "├── "
+                if is_group_node:
+                    styled = click.style(key, fg="blue", bold=True)
+                    lines.append(f"{prefix}{connector}{styled}")
+                    extension = "    " if is_last else "│   "
+                    lines.extend(
+                        self._render_tree(value, prefix + extension, is_root=False),
+                    )
+                else:
+                    lines.append(f"{prefix}{connector}{key}")
+        return lines
+
     def find(self, names: Sequence[str]) -> DB:
-        """Find entries whose name or keywords match any of the given names."""
+        """Find entries whose path or keywords match any of the given names."""
         names = [name.lower() for name in names]
         matches = DB(path=None)
-        for groupname, entryname in self:
-            name = f"{groupname}/{entryname}"
-            if any(search_term in entryname.lower() for search_term in names):
-                matches.put(name, self.get(name))
+        for path in self:
+            components = split_path(path)
+            if any(
+                search_term in component.lower()
+                for search_term in names
+                for component in components
+            ):
+                matches.put(path, self.get(path))
                 continue
-            for keyword in self.keywords(name):
+            for keyword in self.keywords(path):
                 if any(search_term in keyword for search_term in names):
-                    matches.put(f"{name} ({keyword})", self.get(name))
+                    matches.put(f"{path} ({keyword})", self.get(path))
                     break
 
         return matches
@@ -487,15 +545,22 @@ class DB:
             return [str(keywords).lower()]
         return []
 
-    def sort_group(self, groupname: str) -> None:
-        """Sort entries in the given group."""
-        group = self.db[groupname]
-        self.db[groupname] = dict(sorted(group.items(), key=lambda t: t[0]))
+    def sort_node(self, node: Node) -> None:
+        """Sort entries in the given node alphabetically."""
+        sorted_items = sorted(node.items(), key=lambda t: t[0])
+        node.clear()
+        node.update(sorted_items)
 
     def sort(self) -> None:
-        """Sort entries in each group of the database."""
-        for groupname in self.db:
-            self.sort_group(groupname)
+        """Sort entries at every level of the database."""
+        self._sort_recursive(self.db)
+
+    def _sort_recursive(self, node: Node) -> None:
+        """Recursively sort all levels of the tree."""
+        for value in node.values():
+            if isinstance(value, dict) and not is_entry(value):
+                self._sort_recursive(value)
+        self.sort_node(node)
 
     def execute_pre_read_hook(self) -> None:
         """Execute pre-read hook if existing."""
@@ -510,18 +575,31 @@ class DB:
     def validate(self) -> None:
         """Validate the database.
 
-        Exit if the database is not a valid Database.
+        Exit if the database is not a valid Database. The root is always
+        a group. At every level, each child must be a dict. A group must
+        contain only dict values; an entry must contain only non-dict values.
         """
         if not isinstance(self.db, dict):
             sys.exit("Database is not a dict")
 
-        for groupname, group in self.db.items():
-            if not isinstance(group, dict):
-                sys.exit(f"Group '{groupname}' is not a dict")
+        self._validate_group(self.db, "")
 
-            for entryname, entry in group.items():
-                if not isinstance(entry, dict):
-                    sys.exit(f"Entry '{entryname}' is not a dict")
+    def _validate_group(self, node: Node, path: str) -> None:
+        """Recursively validate that a group node is well-formed."""
+        for key, value in node.items():
+            current = f"{path}/{key}" if path else key
+            if not isinstance(value, dict):
+                sys.exit(f"'{current}' is not a dict")
+            if is_entry(value):
+                # Leaf entry — check that all values are non-dict
+                for field_value in value.values():
+                    if isinstance(field_value, dict):
+                        sys.exit(
+                            f"Entry '{current}' has mixed dict/non-dict values",
+                        )
+            else:
+                # Sub-group — recurse
+                self._validate_group(value, current)
 
     def is_empty(self) -> bool:
         """Return whether the database is empty."""
@@ -639,7 +717,7 @@ def config(obj: Obj, editor: str) -> None:
     "-n",
     "--no-tree",
     is_flag=True,
-    help="Print entries in 'groupname/entryname' format.",
+    help="Print entries as full paths.",
 )
 @click.argument("group", required=False)
 @click.pass_obj
@@ -655,7 +733,7 @@ def ls(obj: Obj, group: str | None, no_tree: bool) -> None:
     "-n",
     "--no-tree",
     is_flag=True,
-    help="Print entries in 'groupname/entryname' format.",
+    help="Print entries as full paths.",
 )
 @click.option("-p", "--print", "print_", is_flag=True, help="Show the found entries.")
 @click.option(
@@ -693,16 +771,16 @@ def find(
     if matches.is_empty() or not clip:
         return
 
-    groupname, entryname = next(iter(matches))
-    first_match = matches.get(f"{groupname}/{entryname}")
+    first_path = next(iter(matches))
+    first_match = matches.get(first_path)
     assert first_match is not None
     password = first_match.get("password")
     if password is None:
-        sys.exit(f"{groupname}/{entryname} does not have a password")
+        sys.exit(f"{first_path} does not have a password")
 
     to_clipboard(str(password), timeout)
     click.echo()
-    click.echo(f"Copied password of {groupname}/{entryname} to clipboard.")
+    click.echo(f"Copied password of {first_path} to clipboard.")
 
 
 @cli.command(short_help="Show entry, group or the whole database.")
@@ -736,8 +814,8 @@ def show(obj: Obj, name: str | None, clip: bool, timeout: int) -> None:
     if clip:
         if name is None:
             sys.exit("Can't put the entire database to clipboard")
-        if isgroup(name):
-            sys.exit("Can't put the entire group to clipboard")
+        if not is_entry(entry):
+            sys.exit("Can't put a group to clipboard")
 
         password = entry.get("password")
         if password is None:
@@ -754,11 +832,11 @@ def do_insert(obj: Obj, name: str, password: str, force: bool) -> str | None:
     If `name` is already in the database, keep a backup of the old password.
     Return the old password or None if there wasn't one.
     """
-    if isgroup(name):
-        sys.exit(f"{name} is a group")
     db: DB = obj["_db"]
     db.read(lock=True)
     entry = db.get(name)
+    if entry is not None and not is_entry(entry):
+        sys.exit(f"{name} is a group")
     old_password = None
     if entry is None:
         db.put(name, {"password": password})
@@ -1067,11 +1145,29 @@ def edit(obj: Obj, name: str | None, editor: str) -> None:
 @cli.command()
 @click.argument("names", nargs=-1, required=True, metavar="ENTRY/GROUP...")
 @click.option("-f", "--force", is_flag=True, help="Do not prompt for confirmation.")
+@click.option(
+    "-r",
+    "--recursive",
+    is_flag=True,
+    help="Remove groups recursively.",
+)
 @click.pass_obj
-def rm(obj: Obj, names: list[str], force: bool) -> None:
+def rm(obj: Obj, names: list[str], force: bool, recursive: bool) -> None:
     """Remove entries or groups."""
     db: DB = obj["_db"]
     db.read(lock=True)
+
+    # Require --recursive for group removal
+    for name in names:
+        node = db.get(name)
+        if (
+            node is not None
+            and isinstance(node, dict)
+            and not is_entry(node)
+            and not recursive
+        ):
+            sys.exit(f"Cannot remove '{name}': is a group, use -r to remove")
+
     if len(names) == 1:
         if db.pop(names[0], force) is None:
             sys.exit(f"{names[0]} not found")
@@ -1087,6 +1183,35 @@ def rm(obj: Obj, names: list[str], force: bool) -> None:
     db.write(obj["gpg_id"])
 
 
+def _mv_group(db: DB, src: str, dest: str) -> None:
+    """Move (rename) a group."""
+    dest_stripped = dest.rstrip("/")
+    if db.get(dest_stripped) is not None:
+        sys.exit(f"{dest_stripped} already exists")
+    if dest_stripped.startswith(src + "/"):
+        sys.exit(f"Cannot move '{src}' into its own subdirectory")
+    group = db.pop(src, force=True)
+    db.put(dest_stripped, group)
+
+
+def _mv_entry(db: DB, src: str, dest: str, force: bool) -> None:
+    """Move (rename) a single entry into dest."""
+    dest_stripped = dest.rstrip("/")
+    dest_node = db.get(dest_stripped)
+    is_dest_group = path_is_group_hint(dest) or (
+        dest_node is not None and not is_entry(dest_node)
+    )
+    if is_dest_group:
+        entry_name = split_path(src)[-1]
+        newname = f"{dest_stripped}/{entry_name}" if dest_stripped else entry_name
+    else:
+        newname = dest
+    if db.get(newname) is not None:
+        confirm(f"Overwrite {newname}?", force)
+    entry = db.pop(src, force=True)
+    db.put(newname, entry)
+
+
 @cli.command(short_help="Move or rename entries.")
 @click.argument("source", nargs=-1, required=True)
 @click.argument("dest", metavar="DEST/GROUP")
@@ -1096,32 +1221,29 @@ def mv(obj: Obj, source: tuple[str, ...], dest: str, force: bool) -> None:
     """Rename SOURCE to DEST or move SOURCE(s) to GROUP."""
     db: DB = obj["_db"]
     db.read(lock=True)
-    if len(source) > 1 and not isgroup(dest):
-        sys.exit(f"{dest} is not a group")
 
-    if len(source) == 1 and isgroup(source[0]):
-        if not isgroup(dest):
+    if len(source) > 1:
+        dest_node = db.get(dest.rstrip("/"))
+        is_dest_group = path_is_group_hint(dest) or (
+            dest_node is not None and not is_entry(dest_node)
+        )
+        if not is_dest_group:
             sys.exit(f"{dest} is not a group")
-        groupname = source[0]
-        if db.get(groupname) is None:
-            sys.exit(f"{groupname} not found")
-        if db.get(dest) is not None:
-            # Do not implicitly remove a whole group even by asking the
-            # user. Instead we could prompt for merging the two groups.
-            sys.exit(f"{dest} already exists")
-        group = db.pop(groupname, force=True)
-        db.put(dest, group)
+
+    if len(source) == 1:
+        src = source[0].rstrip("/")
+        src_node = db.get(src)
+        if src_node is None:
+            sys.exit(f"{src} not found")
+        if not is_entry(src_node):
+            _mv_group(db, src, dest)
+        else:
+            _mv_entry(db, src, dest, force)
     else:
         for name in source:
             if db.get(name) is None:
                 sys.exit(f"{name} not found")
-            _, entryname = split(name)
-            assert entryname is not None
-            newname = str(Path(dest) / entryname) if isgroup(dest) else dest
-            if db.get(newname) is not None:
-                confirm(f"Overwrite {newname}?", force)
-            entry = db.pop(name, force=True)
-            db.put(newname, entry)
+            _mv_entry(db, name, dest, force)
 
     db.write(obj["gpg_id"])
 
@@ -1171,7 +1293,7 @@ def get_autotype_keys(entry: Entry) -> list[str]:
 @click.option("-d", "--delay", default="50", help="Delay between keystrokes in ms.")
 @click.option("-m", "--menu", default="dmenu", help="dmenu provider command.")
 @click.pass_obj
-def autotype(obj: Obj, sequence: str, delay: str, menu: str) -> None:
+def autotype(obj: Obj, sequence: str, delay: str, menu: str | list[str]) -> None:
     """Type login credentials."""
     db: DB = obj["_db"]
     db.read()
@@ -1181,13 +1303,13 @@ def autotype(obj: Obj, sequence: str, delay: str, menu: str) -> None:
     # in `names`, to fall back to that if there are no matches.
     names = []
     matches = []
-    for groupname, entryname in db:
-        name = f"{groupname}/{entryname}"
-        names.append(name)
-        keywords = [entryname.lower(), *db.keywords(name)]
+    for path in db:
+        names.append(path)
+        entryname = split_path(path)[-1]
+        keywords = [entryname.lower(), *db.keywords(path)]
         title = window[1].lower()
         if any(keyword in title for keyword in keywords):
-            matches.append(name)
+            matches.append(path)
 
     if len(matches) == 1:
         choice = matches[0].strip()

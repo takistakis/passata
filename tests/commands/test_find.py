@@ -134,3 +134,29 @@ def test_find_clip_no_password(db: Path) -> None:
     result = run(["find", "gmail", "--clip"])
     assert isinstance(result.exception, SystemExit)
     assert result.output.endswith("does not have a password\n")
+
+
+# Tests for nested/filesystem-like paths
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_find_nested_entry() -> None:
+    result = run(["find", "reddit"])
+
+    assert "reddit" in result.output
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_find_by_group_name() -> None:
+    """Searching for a group name should find entries inside it."""
+    result = run(["find", "social"])
+
+    assert "reddit" in result.output
+    assert "twitter" in result.output
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_find_top_level_entry() -> None:
+    result = run(["find", "server"])
+
+    assert "server" in result.output
