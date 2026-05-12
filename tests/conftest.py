@@ -70,6 +70,45 @@ def db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return dbpath
 
 
+@pytest.fixture
+def nested_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.setattr(passata.DB, "encrypt", lambda _, x, __: x)
+    monkeypatch.setattr(passata.DB, "decrypt", lambda _, x: Path(x).read_text())
+
+    confpath = tmp_path / "config.yml"
+    dbpath = tmp_path / "passata.db"
+
+    confpath.write_text(
+        dedent(f"""\
+        database: {dbpath}
+        gpg_id: mail@mail.com
+    """),
+    )
+
+    dbpath.write_text(
+        dedent("""\
+        internet:
+          github:
+            password: gh
+            username: takis
+          social:
+            reddit:
+              password: rdt
+              username: sakis
+            twitter:
+              password: twt
+              username: takis
+        server:
+          password: srv
+          username: admin
+    """),
+    )
+
+    os.environ["PASSATA_CONFIG_PATH"] = str(confpath)
+
+    return dbpath
+
+
 # ruff: noqa: ARG001
 @pytest.fixture
 def editor(monkeypatch: pytest.MonkeyPatch) -> Callable[[str], None]:
