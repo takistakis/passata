@@ -11,7 +11,7 @@ active window's title. Autotyping currently only works on Linux.
 
 Requirements:
 
-- Python 3.9 or newer
+- Python 3.10 or newer
 - Python libraries: click, PyYAML, watchdog
 - Software: gpg, xdotool, dmenu, libnotify, xsel
 
