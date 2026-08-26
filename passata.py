@@ -41,7 +41,7 @@ import click
 import watchdog.events
 import watchdog.observers
 import yaml
-import yaml.scanner
+import yaml.error
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator, Sequence
@@ -1133,7 +1133,7 @@ def edit(obj: Obj, name: str | None, editor: str) -> None:
 
         try:
             data = to_dict(updated)
-        except yaml.scanner.ScannerError:
+        except yaml.error.YAMLError:
             sys.exit("Invalid yaml")
         else:
             db.put(name, data)
