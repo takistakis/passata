@@ -917,21 +917,21 @@ def generate(
 
     password = generate_password(length, entropy, symbols, words, wordpath, force)
 
+    if name:
+        old_password = do_insert(obj, name, password, force)
+        if clip and old_password is not None:
+            to_clipboard(str(old_password), timeout=0)
+            click.echo("Copied old password to clipboard.")
+            click.pause()
+
+    # Print the password if explicitly requested or if there is no other output
+    # method.
     if print_ or (not name and not clip):
         click.echo(password)
 
-    old_password = do_insert(obj, name, password, force) if name else None
-
-    if not clip:
-        return
-
-    if old_password is not None:
-        to_clipboard(str(old_password), timeout=0)
-        click.echo("Copied old password to clipboard.")
-        click.pause()
-
-    to_clipboard(password, timeout=timeout)
-    click.echo("Copied generated password to clipboard.")
+    if clip:
+        to_clipboard(password, timeout=timeout)
+        click.echo("Copied generated password to clipboard.")
 
 
 @cli.command()
