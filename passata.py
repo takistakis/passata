@@ -989,39 +989,46 @@ def edit(obj: Obj, name: str, editor: str) -> None:
     comment = name or "passata database"
     text = f"# {comment}\n{original}"
 
-    temp = tempfile.NamedTemporaryFile(mode="w+", prefix="passata-", suffix=".yml")  # noqa: SIM115
-    temp.write(text)
-    temp.flush()
-
-    temppath = Path(temp.name)
-    directory = temppath.parent
-    event_handler = EventHandler(temp.name)
-    event_handler.last_content = text
-    observer = watchdog.observers.Observer()
-    observer.schedule(event_handler, path=str(directory), recursive=True)
-    observer.start()
-
-    click.edit(filename=temp.name, editor=editor)
-
-    observer.stop()
-    observer.join()
-
-    # Read the file one last time. It may have already been read
-    # in the handler, but it's not guaranteed. If for example the
-    # user saved and exited the editor, there is a race condition.
-    updated = temppath.read_text()
-    temp.close()
-
-    if updated == text:
-        return
+    with tempfile.NamedTemporaryFile(
+        mode="w+",
+        prefix="passata-",
+        suffix=".yml",
+        delete=False,
+    ) as temp:
+        temp.write(text)
+        temp.flush()
+        temppath = Path(temp.name)
 
     try:
-        data = to_dict(updated)
-    except yaml.scanner.ScannerError:
-        sys.exit("Invalid yaml")
-    else:
-        db.put(name, data)
-        db.write(obj["gpg_id"])
+        directory = temppath.parent
+        event_handler = EventHandler(str(temppath))
+        event_handler.last_content = text
+        observer = watchdog.observers.Observer()
+        observer.schedule(event_handler, path=str(directory), recursive=True)
+        observer.start()
+
+        click.edit(filename=str(temppath), editor=editor)
+
+        observer.stop()
+        observer.join()
+
+        # Read the file one last time. It may have already been read
+        # in the handler, but it's not guaranteed. If for example the
+        # user saved and exited the editor, there is a race condition.
+        updated = temppath.read_text()
+
+        if updated == text:
+            return
+
+        try:
+            data = to_dict(updated)
+        except yaml.scanner.ScannerError:
+            sys.exit("Invalid yaml")
+        else:
+            db.put(name, data)
+            db.write(obj["gpg_id"])
+    finally:
+        temppath.unlink(missing_ok=True)
 
 
 @cli.command()
