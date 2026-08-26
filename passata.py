@@ -189,7 +189,7 @@ def to_clipboard(data: str, timeout: int) -> None:
     If `timeout` is 0, the clipboard is not cleared.
     """
     command = (
-        ["pbcopy", "w"]
+        ["pbcopy"]
         if sys.platform == "darwin"
         else ["xsel", "-i", "-b", "-t", str(timeout * 1000)]
     )
