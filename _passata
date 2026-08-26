@@ -93,7 +93,7 @@ _passata() {
             '(-c --clip -C --no-clip)'{-C,--no-clip}'[Do not copy password to clipboard]' \
             '(-t --timeout)'{-t,--timeout}'[Number of seconds until the clipboard is cleared]:int:' \
             '(-l --length -e --entropy)'{-l,--length}'[Length of the generated password]:int:' \
-            '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given bits of entropy]:int:' \
+            '(-l --length -e --entropy)'{-e,--entropy}'[Calculate length for given minimum bits of entropy]:float:' \
             '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-s,--symbols}'[Use symbols in the generated password]' \
             '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-S,--no-symbols}'[Do not use symbols in the generated password]' \
             '(-s --symbols -S --no-symbols -w --words -W --no-words --wordpath)'{-w,--words}'[Generate diceware-like passphrase]' \
