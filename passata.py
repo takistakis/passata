@@ -171,6 +171,7 @@ def schedule_clear_clipboard(timeout: int) -> None:
         #!/bin/bash
         sleep {timeout}
         echo -n '' | pbcopy
+        rm -f "$0"
     """)
 
     with tempfile.NamedTemporaryFile("w", delete=False, suffix=".sh") as f:
