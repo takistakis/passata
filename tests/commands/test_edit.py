@@ -293,6 +293,20 @@ def test_edit_invalid_yaml(
     assert result.output == "Invalid yaml\n"
 
 
+@pytest.mark.usefixtures("db")
+def test_edit_invalid_yaml_parser_error(
+    monkeypatch: pytest.MonkeyPatch,
+    editor: Callable,
+) -> None:
+    monkeypatch.setattr(click, "confirm", lambda _: True)
+    # Unbalanced brackets raise a yaml ParserError, not a ScannerError.
+    editor(updated="password: [unclosed\n")
+    result = run(["edit", "internet/reddit"])
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "Invalid yaml\n"
+
+
 def test_edit_no_changes(db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def mock_editor(filename: str, editor: str) -> None:
         content = Path(filename).read_text()
