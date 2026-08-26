@@ -943,7 +943,7 @@ def generate(
     help="Which editor to use.",
 )
 @click.pass_obj
-def edit(obj: Obj, name: str, editor: str) -> None:
+def edit(obj: Obj, name: str | None, editor: str) -> None:
     """Edit entry, group or the whole database."""
 
     class EventHandler(watchdog.events.PatternMatchingEventHandler):
@@ -1059,7 +1059,7 @@ def rm(obj: Obj, names: list[str], force: bool) -> None:
 @click.argument("dest", metavar="DEST/GROUP")
 @click.option("-f", "--force", is_flag=True, help="Do not prompt for confirmation.")
 @click.pass_obj
-def mv(obj: Obj, source: str, dest: str, force: bool) -> None:
+def mv(obj: Obj, source: tuple[str, ...], dest: str, force: bool) -> None:
     """Rename SOURCE to DEST or move SOURCE(s) to GROUP."""
     db: DB = obj["_db"]
     db.read(lock=True)
