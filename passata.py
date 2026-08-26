@@ -276,7 +276,10 @@ def default_gpg_id() -> str:
     gpg_ids = re.search(r"<(.*)>", out(command))
     if gpg_ids is None:
         sys.exit("No gpg secret keys found")
-    return gpg_ids.group(1)
+    gpg_id = gpg_ids.group(1)
+    if not gpg_id:
+        sys.exit("No gpg secret keys found")
+    return gpg_id
 
 
 # Database
