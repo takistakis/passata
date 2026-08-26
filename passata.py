@@ -909,13 +909,9 @@ def generate(
 
     # Entropy takes precedence over length but cli params take precedence over
     # config.
-    entropy_source = ctx.get_parameter_source("entropy")
-    length_source = ctx.get_parameter_source("length")
     if (
-        entropy_source is not None
-        and length_source is not None
-        and entropy_source.name == "DEFAULT_MAP"
-        and length_source.name == "COMMANDLINE"
+        ctx.get_parameter_source("entropy") == click.core.ParameterSource.DEFAULT_MAP
+        and ctx.get_parameter_source("length") == click.core.ParameterSource.COMMANDLINE
     ):
         entropy = None
 
