@@ -464,11 +464,11 @@ class DB:
         matches = DB(path=None)
         for groupname, entryname in self:
             name = f"{groupname}/{entryname}"
-            if any(name in entryname.lower() for name in names):
+            if any(search_term in entryname.lower() for search_term in names):
                 matches.put(name, self.get(name))
                 continue
             for keyword in self.keywords(name):
-                if any(name in keyword for name in names):
+                if any(search_term in keyword for search_term in names):
                     matches.put(f"{name} ({keyword})", self.get(name))
                     break
 
