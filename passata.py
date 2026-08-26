@@ -867,7 +867,10 @@ def generate_password(
     "-e",
     "--entropy",
     type=click.FLOAT,
-    help="Calculate length for given bits of entropy (takes precedence over --length).",
+    help=(
+        "Calculate length for given minimum bits of entropy "
+        "(takes precedence over --length)."
+    ),
 )
 @click.option(
     "-s/-S",
