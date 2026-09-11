@@ -474,44 +474,47 @@ class DB:
                 sys.exit(f"{name} not found")
             if is_entry(node):
                 sys.exit(f"{name} is an entry, not a group")
-            lines.extend(node)
+            if no_tree:
+                lines = list(self._walk(node, name))
+            else:
+                lines = self._render_tree(node, root_label=name)
         elif no_tree:
-            lines = list(self)
+            lines = list(self._walk(self.db, ""))
         else:
-            lines = self._render_tree(self.db)
+            lines = self._render_tree(self.db, root_label=".")
         if lines:
             echo("\n".join(lines))
 
     def _render_tree(
         self,
         node: Node,
+        root_label: str | None = None,
         prefix: str = "",
-        is_root: bool = True,
     ) -> list[str]:
         """Render a tree view of the given node."""
+        if not node:
+            return []
+
         lines: list[str] = []
+        if root_label is not None:
+            lines.append(click.style(root_label, fg="blue", bold=True))
+
         items = list(node.items())
         for i, (key, value) in enumerate(items):
             is_last = i == len(items) - 1
             is_group_node = isinstance(value, dict) and not is_entry(value)
+            connector = "└── " if is_last else "├── "
 
-            if is_root:
-                if is_group_node:
-                    lines.append(click.style(key, fg="blue", bold=True))
-                    lines.extend(self._render_tree(value, "", is_root=False))
-                else:
-                    lines.append(key)
+            if is_group_node:
+                styled = click.style(key, fg="blue", bold=True)
+                lines.append(f"{prefix}{connector}{styled}")
+                extension = "    " if is_last else "│   "
+                lines.extend(
+                    self._render_tree(value, prefix=prefix + extension),
+                )
             else:
-                connector = "└── " if is_last else "├── "
-                if is_group_node:
-                    styled = click.style(key, fg="blue", bold=True)
-                    lines.append(f"{prefix}{connector}{styled}")
-                    extension = "    " if is_last else "│   "
-                    lines.extend(
-                        self._render_tree(value, prefix + extension, is_root=False),
-                    )
-                else:
-                    lines.append(f"{prefix}{connector}{key}")
+                lines.append(f"{prefix}{connector}{key}")
+
         return lines
 
     def find(self, names: Sequence[str]) -> DB:
