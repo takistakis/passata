@@ -31,8 +31,9 @@ def test_find() -> None:
     result = run(["find", "red"])
 
     assert result.output == dedent("""\
-        internet
-        └── reddit
+        .
+        └── internet
+            └── reddit
     """)
 
 
@@ -41,9 +42,10 @@ def test_find_multiple() -> None:
     result = run(["find", "red", "git"])
 
     assert result.output == dedent("""\
-        internet
-        ├── github
-        └── reddit
+        .
+        └── internet
+            ├── github
+            └── reddit
     """)
 
 
@@ -52,9 +54,10 @@ def test_find_multiple_clip() -> None:
     result = run(["find", "red", "git", "--clip"])
 
     assert result.output == dedent("""\
-        internet
-        ├── github
-        └── reddit
+        .
+        └── internet
+            ├── github
+            └── reddit
 
         Copied password of internet/github to clipboard.
     """)
@@ -96,8 +99,9 @@ def test_find_in_keyword(editor: Callable) -> None:
     result = run(["find", "mail"])
 
     assert result.output == dedent("""\
-        group
-        └── google (gmail)
+        .
+        └── group
+            └── google (gmail)
     """)
 
 
