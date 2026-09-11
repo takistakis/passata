@@ -268,6 +268,24 @@ def to_string(data: Node | None) -> str:
     )
 
 
+def groups_first(node: Node) -> Node:
+    """Return a copy with groups before entries at every group level."""
+    if is_entry(node):
+        return node.copy()
+
+    groups = {
+        key: groups_first(value)
+        for key, value in node.items()
+        if isinstance(value, dict) and not is_entry(value)
+    }
+    entries = {
+        key: value
+        for key, value in node.items()
+        if not isinstance(value, dict) or is_entry(value)
+    }
+    return groups | entries
+
+
 # Config
 def read_config(confpath: Path) -> Config:
     """Read the configuration file and return it as a dict."""
@@ -475,11 +493,11 @@ class DB:
             if is_entry(node):
                 sys.exit(f"{name} is an entry, not a group")
             if no_tree:
-                lines = list(self._walk(node, name))
+                lines = list(self._walk(groups_first(node), name))
             else:
                 lines = self._render_tree(node, root_label=name)
         elif no_tree:
-            lines = list(self._walk(self.db, ""))
+            lines = list(self._walk(groups_first(self.db), ""))
         else:
             lines = self._render_tree(self.db, root_label=".")
         if lines:
@@ -499,7 +517,7 @@ class DB:
         if root_label is not None:
             lines.append(click.style(root_label, fg="blue", bold=True))
 
-        items = list(node.items())
+        items = list(groups_first(node).items())
         for i, (key, value) in enumerate(items):
             is_last = i == len(items) - 1
             is_group_node = isinstance(value, dict) and not is_entry(value)
@@ -826,7 +844,7 @@ def show(obj: Obj, name: str | None, clip: bool, timeout: int) -> None:
 
         to_clipboard(str(password), timeout=timeout)
     else:
-        echo(to_string(entry).strip())
+        echo(to_string(groups_first(entry)).strip())
 
 
 def do_insert(obj: Obj, name: str, password: str, force: bool) -> str | None:
