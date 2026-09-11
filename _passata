@@ -135,7 +135,7 @@ _passata() {
 
 _complete_groups() {
   local IFS=$'\n'
-  _values 'group' ${$(passata ls 2>/dev/null | grep -E "^[^ ├└│]"):-""}
+  _values 'group' ${$(passata ls -n 2>/dev/null | awk -F/ 'NF > 1 { print $1 }' | sort -u):-""}
 }
 
 _complete_entries() {
