@@ -29,9 +29,10 @@ def test_ls_db() -> None:
     result = run(["ls"])
 
     assert result.output == dedent("""\
-        internet
-        ├── github
-        └── reddit
+        .
+        └── internet
+            ├── github
+            └── reddit
     """)
 
 
@@ -40,8 +41,9 @@ def test_ls_group() -> None:
     result = run(["ls", "internet"])
 
     assert result.output == dedent("""\
-        github
-        reddit
+        internet
+        ├── github
+        └── reddit
     """)
 
 
@@ -71,22 +73,26 @@ def test_ls_nested_db() -> None:
     result = run(["ls"])
 
     assert result.output == dedent("""\
-        internet
-        ├── github
-        └── social
-            ├── reddit
-            └── twitter
-        server
+        .
+        ├── internet
+        │   ├── github
+        │   └── social
+        │       ├── reddit
+        │       └── twitter
+        └── server
     """)
 
 
 @pytest.mark.usefixtures("nested_db")
 def test_ls_nested_group() -> None:
-    result = run(["ls", "internet/social"])
+    result = run(["ls", "internet"])
 
     assert result.output == dedent("""\
-        reddit
-        twitter
+        internet
+        ├── github
+        └── social
+            ├── reddit
+            └── twitter
     """)
 
 
