@@ -34,6 +34,21 @@ def test_split_path_rejects_empty_component() -> None:
         split_path("group//entry")
 
 
+def test_paths_for_group(capsys: pytest.CaptureFixture[str]) -> None:
+    db = DB(path=None)
+    db.db = {"group": {"entry": {"password": "pass"}}}
+
+    db.paths("group/")
+
+    assert capsys.readouterr().out == "group/entry\n"
+
+
+def test_paths_empty_database(capsys: pytest.CaptureFixture[str]) -> None:
+    DB(path=None).paths()
+
+    assert capsys.readouterr().out == ""
+
+
 def test_put_rejects_subpath_of_entry() -> None:
     db = DB(path=None)
     db.db = {"entry": {"password": "pass"}}

@@ -31,8 +31,8 @@ Install passata itself by running `sudo make install`.
 
 ## Zsh completion
 
-Installing passata using the provided Makefile will also install the
-zsh completion script.
+Installing passata using the provided Makefile will also install the zsh
+completion script.
 
 On macOS, the zsh completion of the passata entries, doesn't work with
 the default pientnry program. To fix this you can install pinentry-mac
@@ -64,10 +64,11 @@ Then restart the gpg-agent with `gpgconf --kill gpg-agent`.
       generate  Generate a random password.
       init      Initialize password database.
       insert    Insert a new password.
-      ls        List entries in a tree-like format.
+      ls        List entries in the database or a group.
       mv        Move or rename entries.
       rm        Remove entries or groups.
       show      Show entry, group or the whole database.
+      tree      List entries in a tree-like format.
 
 See `passata <command> --help` for more info on a specific command.
 
@@ -81,8 +82,8 @@ entries, the user is prompted to choose the right one using dmenu.
 Finally the sequence that is specified in the `autotype` field of the
 chosen entry is typed using xdotool.
 
-This is supposed to be used by adding a keybinding for `passata
-autotype` to your window manager's configuration.
+This is supposed to be used by adding a keybinding for
+`passata autotype` to your window manager's configuration.
 
 The `keywords` field can contain a string or list of strings.
 
@@ -90,15 +91,15 @@ The `autotype` field supports the following items:
 
 - `<field>`: Types the contents of the given field of the entry (e.g.
   `<username>`).
-- `Key`: Sends the specified keystroke (e.g. `Tab`, `Return`). See `man
-  xdotool` for more information.
+- `Key`: Sends the specified keystroke (e.g. `Tab`, `Return`). See
+  `man xdotool` for more information.
 - `!time`: Sleeps for the given time (e.g. `!0.5`). Can be used to wait
   for the next page to load for services like gmail, where the username
   and password forms are on different pages.
 
 The default autotype field is `<username> Tab <password> Return` if
-there is both a `<username>` and a `<password>` field, or `<password>
-Return` if there is only a `<password>`.
+there is both a `<username>` and a `<password>` field, or
+`<password> Return` if there is only a `<password>`.
 
 This feature is based on [pass-autotype], which I recommend if you want
 something similar and prefer pass.
