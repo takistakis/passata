@@ -177,6 +177,44 @@ def test_show_nested_group() -> None:
 
 
 @pytest.mark.usefixtures("nested_db")
+def test_show_groups_before_entries() -> None:
+    result = run(["show", "internet"])
+    assert result.output == dedent("""\
+        social:
+          reddit:
+            password: rdt
+            username: sakis
+          twitter:
+            password: twt
+            username: takis
+        github:
+          password: gh
+          username: takis
+    """)
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_show_groups_before_entries_recursively() -> None:
+    result = run(["show"])
+    assert result.output == dedent("""\
+        internet:
+          social:
+            reddit:
+              password: rdt
+              username: sakis
+            twitter:
+              password: twt
+              username: takis
+          github:
+            password: gh
+            username: takis
+        server:
+          password: srv
+          username: admin
+    """)
+
+
+@pytest.mark.usefixtures("nested_db")
 def test_show_nested_clip() -> None:
     result = run(["show", "internet/social/reddit", "--clip"])
     assert result.output == ""
