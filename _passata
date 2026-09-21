@@ -19,7 +19,8 @@ _passata() {
       subcommands=(
         'init:Initialize password database'
         'config:Edit the configuration file'
-        'ls:List entries in a tree-like format'
+        'ls:List entries in the database or a group'
+        'tree:List entries in a tree-like format'
         'find:List matching entries in a tree-like format'
         'show:Show entry, group or the whole database'
         'insert:Insert a new password'
@@ -51,7 +52,12 @@ _passata() {
 
         ls)
           _arguments -s : \
-            '(-n --no-tree)'{-n,--no-tree}'[Print entries as full paths]' \
+            '(-h --help)'{-h,--help}'[Show help message and exit]'
+          _complete_groups
+          ;;
+
+        tree)
+          _arguments -s : \
             '(-h --help)'{-h,--help}'[Show help message and exit]'
           _complete_groups
           ;;
@@ -135,12 +141,12 @@ _passata() {
 
 _complete_groups() {
   local IFS=$'\n'
-  _values 'group' ${$(passata ls -n 2>/dev/null | awk -F/ 'NF > 1 { print $1 }' | sort -u):-""}
+  _values 'group' ${$(passata find "" --no-tree 2>/dev/null | awk -F/ 'NF > 1 { print $1 }' | sort -u):-""}
 }
 
 _complete_entries() {
   local IFS=$'\n'
-  _values 'entry' ${$(passata ls --no-tree 2>/dev/null):-""}
+  _values 'entry' ${$(passata find "" --no-tree 2>/dev/null):-""}
 }
 
 _complete_wordlists() {

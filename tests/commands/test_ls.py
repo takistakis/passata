@@ -29,10 +29,7 @@ def test_ls_db() -> None:
     result = run(["ls"])
 
     assert result.output == dedent("""\
-        .
-        └── internet
-            ├── github
-            └── reddit
+        internet
     """)
 
 
@@ -41,19 +38,8 @@ def test_ls_group() -> None:
     result = run(["ls", "internet"])
 
     assert result.output == dedent("""\
-        internet
-        ├── github
-        └── reddit
-    """)
-
-
-@pytest.mark.usefixtures("db")
-def test_ls_no_tree() -> None:
-    result = run(["ls", "--no-tree"])
-
-    assert result.output == dedent("""\
-        internet/github
-        internet/reddit
+        github
+        reddit
     """)
 
 
@@ -69,8 +55,8 @@ def test_ls_nonexistent_group() -> None:
 
 
 @pytest.mark.usefixtures("nested_db")
-def test_ls_nested_db() -> None:
-    result = run(["ls"])
+def test_tree_nested_db() -> None:
+    result = run(["tree"])
 
     assert result.output == dedent("""\
         .
@@ -84,8 +70,8 @@ def test_ls_nested_db() -> None:
 
 
 @pytest.mark.usefixtures("nested_db")
-def test_ls_nested_group() -> None:
-    result = run(["ls", "internet"])
+def test_tree_nested_group() -> None:
+    result = run(["tree", "internet"])
 
     assert result.output == dedent("""\
         internet
@@ -97,14 +83,22 @@ def test_ls_nested_group() -> None:
 
 
 @pytest.mark.usefixtures("nested_db")
-def test_ls_nested_no_tree() -> None:
-    result = run(["ls", "--no-tree"])
+def test_ls_nested_db() -> None:
+    result = run(["ls"])
 
     assert result.output == dedent("""\
-        internet/social/reddit
-        internet/social/twitter
-        internet/github
+        internet
         server
+    """)
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_ls_nested_group() -> None:
+    result = run(["ls", "internet"])
+
+    assert result.output == dedent("""\
+        social
+        github
     """)
 
 
