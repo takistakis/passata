@@ -38,10 +38,7 @@ def assert_db_full() -> None:
     assert result.exit_code == 0
     assert result.exception is None
     assert result.output == dedent("""\
-        .
-        └── internet
-            ├── github
-            └── reddit
+        internet
     """)
 
 
