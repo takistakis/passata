@@ -64,10 +64,11 @@ Then restart the gpg-agent with `gpgconf --kill gpg-agent`.
       generate  Generate a random password.
       init      Initialize password database.
       insert    Insert a new password.
-      ls        List entries in a tree-like format.
+      ls        List entries in the database or a group.
       mv        Move or rename entries.
       rm        Remove entries or groups.
       show      Show entry, group or the whole database.
+      tree      List entries in a tree-like format.
 
 See `passata <command> --help` for more info on a specific command.
 

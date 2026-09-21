@@ -446,26 +446,44 @@ class DB:
 
         return result
 
-    def ls(self, name: str | None = None, no_tree: bool = False) -> None:
-        """List entries in a tree-like format."""
-        lines: list[str] = []
-        if name:
-            name = name.rstrip("/")
-            node = self.get(name)
-            if node is None:
-                sys.exit(f"{name} not found")
-            if is_entry(node):
-                sys.exit(f"{name} is an entry, not a group")
-            if no_tree:
-                lines = list(self._walk(node, name))
-            else:
-                lines = self._render_tree(node, root_label=name)
-        elif no_tree:
-            lines = list(self._walk(self.db, ""))
-        else:
-            lines = self._render_tree(self.db, root_label=".")
+    def ls(self, name: str | None = None) -> None:
+        """List the immediate children of the database or a group."""
+        node = self._get_group(name)
+        lines = [
+            click.style(key, fg="blue", bold=True) if is_group(value) else key
+            for key, value in node.items()
+        ]
         if lines:
             echo("\n".join(lines))
+
+    def tree(self, name: str | None = None) -> None:
+        """List entries in a tree-like format."""
+        node = self._get_group(name)
+        root_label = name.rstrip("/") if name else "."
+        lines = self._render_tree(node, root_label=root_label)
+        if lines:
+            echo("\n".join(lines))
+
+    def paths(self, name: str | None = None) -> None:
+        """List all entry paths below the database or a group."""
+        node = self._get_group(name)
+        prefix = name.rstrip("/") if name else ""
+        lines = list(self._walk(node, prefix))
+        if lines:
+            echo("\n".join(lines))
+
+    def _get_group(self, name: str | None) -> Node:
+        """Return a group or exit with an appropriate error."""
+        if not name:
+            return self.db
+
+        name = name.rstrip("/")
+        node = self.get(name)
+        if node is None:
+            sys.exit(f"{name} not found")
+        if is_entry(node):
+            sys.exit(f"{name} is an entry, not a group")
+        return node
 
     def _render_tree(
         self,
@@ -686,19 +704,23 @@ def config(obj: Obj, editor: str) -> None:
 
 
 @cli.command()
-@click.option(
-    "-n",
-    "--no-tree",
-    is_flag=True,
-    help="Print entries as full paths.",
-)
 @click.argument("group", required=False)
 @click.pass_obj
-def ls(obj: Obj, group: str | None, no_tree: bool) -> None:
+def ls(obj: Obj, group: str | None) -> None:
+    """List entries in the database or a group."""
+    db: DB = obj["_db"]
+    db.read()
+    db.ls(group)
+
+
+@cli.command()
+@click.argument("group", required=False)
+@click.pass_obj
+def tree(obj: Obj, group: str | None) -> None:
     """List entries in a tree-like format."""
     db: DB = obj["_db"]
     db.read()
-    db.ls(group, no_tree)
+    db.tree(group)
 
 
 @cli.command()
@@ -738,8 +760,10 @@ def find(
 
     if print_:
         echo(to_string(matches.db).strip())
+    elif no_tree:
+        matches.paths()
     else:
-        matches.ls(no_tree=no_tree)
+        matches.tree()
 
     if not matches.db or not clip:
         return
