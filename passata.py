@@ -352,6 +352,7 @@ class DB:
     def write(self, gpg_id: str, force: bool = True) -> None:
         """Write the database as an encrypted string."""
         assert self.path is not None
+        self.sort()
         data = to_string(self.db)
         if data == self.data:
             return
