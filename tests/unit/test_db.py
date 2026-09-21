@@ -16,6 +16,7 @@
 # along with passata.  If not, see <http://www.gnu.org/licenses/>.
 
 from pathlib import Path
+from textwrap import dedent
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
@@ -134,6 +135,45 @@ class TestValidate:
 
 class TestWrite:
     """Test the write method of the DB class."""
+
+    def test_sorts_groups_and_entries_before_writing(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(DB, "encrypt", lambda _, x, __: x)
+        db = DB(path=tmp_path / "test.db")
+        db.db = {
+            "zentry": {"password": "z"},
+            "bgroup": {
+                "zentry": {"password": "z"},
+                "agroup": {"entry": {"password": "a"}},
+            },
+            "aentry": {"password": "a"},
+            "agroup": {"entry": {"password": "a"}},
+        }
+        db.data = ""
+
+        db.write("gpg_id")
+
+        assert db.path is not None
+        assert db.path.read_text() == dedent(
+            """\
+            agroup:
+              entry:
+                password: a
+            bgroup:
+              agroup:
+                entry:
+                  password: a
+              zentry:
+                password: z
+            aentry:
+              password: a
+            zentry:
+              password: z
+            """,
+        )
 
     def test_does_not_reregister_hook(
         self,

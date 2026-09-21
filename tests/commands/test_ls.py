@@ -75,10 +75,10 @@ def test_ls_nested_db() -> None:
     assert result.output == dedent("""\
         .
         ├── internet
-        │   ├── github
-        │   └── social
-        │       ├── reddit
-        │       └── twitter
+        │   ├── social
+        │   │   ├── reddit
+        │   │   └── twitter
+        │   └── github
         └── server
     """)
 
@@ -89,10 +89,10 @@ def test_ls_nested_group() -> None:
 
     assert result.output == dedent("""\
         internet
-        ├── github
-        └── social
-            ├── reddit
-            └── twitter
+        ├── social
+        │   ├── reddit
+        │   └── twitter
+        └── github
     """)
 
 
@@ -101,9 +101,9 @@ def test_ls_nested_no_tree() -> None:
     result = run(["ls", "--no-tree"])
 
     assert result.output == dedent("""\
-        internet/github
         internet/social/reddit
         internet/social/twitter
+        internet/github
         server
     """)
 
