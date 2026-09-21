@@ -352,6 +352,7 @@ class DB:
     def write(self, gpg_id: str, force: bool = True) -> None:
         """Write the database as an encrypted string."""
         assert self.path is not None
+        self.sort()
         data = to_string(self.db)
         if data == self.data:
             return
@@ -415,10 +416,7 @@ class DB:
         # Set the leaf
         node[parts[-1]] = subdict
 
-        # Sort the parent level
-        sorted_items = sorted(node.items(), key=lambda t: t[0])
-        node.clear()
-        node.update(sorted_items)
+        self.sort()
 
     def pop(self, name: str | None, force: bool = False) -> Node | None:
         """Remove node at path and every empty ancestor, return the removed node."""
@@ -543,8 +541,14 @@ class DB:
         return []
 
     def sort_node(self, node: Node) -> None:
-        """Sort entries in the given node alphabetically."""
-        sorted_items = sorted(node.items(), key=lambda t: t[0])
+        """Put groups first, then sort groups and entries alphabetically."""
+        sorted_items = sorted(
+            node.items(),
+            key=lambda item: (
+                not isinstance(item[1], dict) or is_entry(item[1]),
+                item[0],
+            ),
+        )
         node.clear()
         node.update(sorted_items)
 

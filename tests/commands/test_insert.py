@@ -56,6 +56,9 @@ def test_insert_entry(db: Path) -> None:
     run(["insert", "group/test", "--password=pass"])
 
     assert read(db) == dedent("""\
+        group:
+          test:
+            password: pass
         internet:
           github:
             password: gh
@@ -63,9 +66,6 @@ def test_insert_entry(db: Path) -> None:
           reddit:
             password: rdt
             username: sakis
-        group:
-          test:
-            password: pass
     """)
 
 
@@ -128,6 +128,10 @@ def test_insert_no_password_no_backup(db: Path, editor: Callable) -> None:
     run(["insert", "group/test", "--password=pass"])
 
     assert read(db) == dedent("""\
+        group:
+          test:
+            username: user
+            password: pass
         internet:
           github:
             password: gh
@@ -135,10 +139,6 @@ def test_insert_no_password_no_backup(db: Path, editor: Callable) -> None:
           reddit:
             password: rdt
             username: sakis
-        group:
-          test:
-            username: user
-            password: pass
     """)
 
 
@@ -165,6 +165,11 @@ def test_insert_deeply_nested(db: Path) -> None:
     run(["insert", "a/b/c/d", "--password=deep"])
 
     assert read(db) == dedent("""\
+        a:
+          b:
+            c:
+              d:
+                password: deep
         internet:
           github:
             password: gh
@@ -172,11 +177,6 @@ def test_insert_deeply_nested(db: Path) -> None:
           reddit:
             password: rdt
             username: sakis
-        a:
-          b:
-            c:
-              d:
-                password: deep
     """)
 
 

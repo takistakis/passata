@@ -88,9 +88,6 @@ def nested_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     dbpath.write_text(
         dedent("""\
         internet:
-          github:
-            password: gh
-            username: takis
           social:
             reddit:
               password: rdt
@@ -98,6 +95,9 @@ def nested_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
             twitter:
               password: twt
               username: takis
+          github:
+            password: gh
+            username: takis
         server:
           password: srv
           username: admin
