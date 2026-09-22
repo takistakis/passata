@@ -52,14 +52,14 @@ _passata() {
 
         ls)
           _arguments -s : \
-            '(-h --help)'{-h,--help}'[Show help message and exit]'
-          _complete_groups
+            '(-h --help)'{-h,--help}'[Show help message and exit]' \
+            '1::group:_complete_groups'
           ;;
 
         tree)
           _arguments -s : \
-            '(-h --help)'{-h,--help}'[Show help message and exit]'
-          _complete_groups
+            '(-h --help)'{-h,--help}'[Show help message and exit]' \
+            '1::group:_complete_groups'
           ;;
 
         find)
@@ -77,16 +77,16 @@ _passata() {
             '(-c --clip -C --no-clip)'{-c,--clip}'[Copy password to clipboard]' \
             '(-c --clip -C --no-clip)'{-C,--no-clip}'[Print entry]' \
             '(-t --timeout)'{-t,--timeout}'[Number of seconds until the clipboard is cleared]:int:' \
-            '(-h --help)'{-h,--help}'[Show help message and exit]'
-          _complete_entries
+            '(-h --help)'{-h,--help}'[Show help message and exit]' \
+            '1::name:_complete_entries'
           ;;
 
         insert)
           _arguments -s : \
             '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
             '--password[Give password instead of being prompted for it]:password:' \
-            '(-h --help)'{-h,--help}'[Show help message and exit]'
-          _complete_entries
+            '(-h --help)'{-h,--help}'[Show help message and exit]' \
+            '1:name:_complete_entries'
           ;;
 
         generate)
@@ -108,23 +108,23 @@ _passata() {
         edit)
           _arguments -s : \
             '(-e --editor)'{-e,--editor}'[Which editor to use]:string:' \
-            '(-h --help)'{-h,--help}'[Show help message and exit]'
-          _complete_entries
+            '(-h --help)'{-h,--help}'[Show help message and exit]' \
+            '1::name:_complete_entries'
           ;;
 
         rm)
           _arguments -s : \
             '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
             '(-r --recursive)'{-r,--recursive}'[Remove groups recursively]' \
-            '(-h --help)'{-h,--help}'[Show help message and exit]'
-          _complete_entries
+            '(-h --help)'{-h,--help}'[Show help message and exit]' \
+            '*:name:_complete_entries'
           ;;
 
         mv)
           _arguments -s : \
             '(-f --force)'{-f,--force}'[Do not prompt for confirmation]' \
-            '(-h --help)'{-h,--help}'[Show help message and exit]'
-          _complete_entries
+            '(-h --help)'{-h,--help}'[Show help message and exit]' \
+            '*:name:_complete_entries'
           ;;
 
         autotype)
@@ -139,14 +139,67 @@ _passata() {
   esac
 }
 
+# Print every path in the database, one per line.
+_passata_paths() {
+  passata ${opt_args[--config]:+--config ${(Q)opt_args[--config]}} \
+    find "" --no-tree 2>/dev/null
+}
+
+# Complete a path one component at a time, like path completion does. Groups
+# are shown with a trailing slash, so that they can be told apart from entries
+# and so that completion keeps going inside the selected group.
+#
+# The first argument selects what may be completed: 'groups' for commands that
+# only accept a group, anything else for commands that accept both.
+_passata_complete() {
+  local -a paths expl dirs names rest
+  local what=$1 dir ipfx
+
+  paths=(${(f)"$(_passata_paths)"})
+  (( $#paths )) || return 1
+  if [[ $what == groups ]]; then
+    paths=(${(u)${(M)paths:#*/*}%/*})
+    (( $#paths )) || return 1
+  fi
+
+  # Fall back to matching every component at once, so that abbreviated paths
+  # such as i/m/g can still be completed.
+  [[ $PREFIX == */* ]] && dir=${PREFIX%/*}/
+  if [[ -n $dir && -z ${(M)paths:#${(b)dir}*} ]]; then
+    _wanted paths expl path _multi_parts / paths
+    return
+  fi
+
+  ipfx=$IPREFIX
+  compset -P '*/'
+  dir=${IPREFIX#$ipfx}
+  rest=(${${(M)paths:#${(b)dir}*}#$dir})
+
+  if [[ $what == groups ]]; then
+    dirs=(${(u)rest%%/*})
+  else
+    dirs=(${(u)${(M)rest:#*/*}%%/*})
+    names=(${rest:#*/*})
+  fi
+  # Add the slash of a group as a suffix instead of as part of the match, so
+  # that it behaves like the one file completion adds: typing a slash after it
+  # does not duplicate it, and completing again descends into the group. It is
+  # still listed, by giving the group names a display string.
+  local -a disp
+  disp=(${^dirs}/)
+
+  local ret=1
+  (( $#dirs )) && _wanted groups expl group compadd -S / -r '/' -d disp -a dirs && ret=0
+  (( $#names )) && _wanted entries expl entry compadd -a names && ret=0
+  return ret
+}
+
 _complete_groups() {
-  local IFS=$'\n'
-  _values 'group' ${$(passata find "" --no-tree 2>/dev/null | awk -F/ 'NF > 1 { print $1 }' | sort -u):-""}
+  _passata_complete groups
 }
 
 _complete_entries() {
-  local IFS=$'\n'
-  _values 'entry' ${$(passata find "" --no-tree 2>/dev/null):-""}
+  _passata_complete entries
 }
 
 _complete_wordlists() {
