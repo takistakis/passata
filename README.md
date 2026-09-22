@@ -27,15 +27,13 @@ On macOS:
 pip3 install --break-system-packages --upgrade --user click pyyaml watchdog
 ```
 
-Install passata itself by running `sudo make install`.
+Install passata itself by running `sudo make install`, which also
+installs the wordlists and the zsh completion script.
 
 ## Zsh completion
 
-Installing passata using the provided Makefile will also install the
-zsh completion script.
-
 On macOS, the zsh completion of the passata entries, doesn't work with
-the default pientnry program. To fix this you can install pinentry-mac
+the default pinentry program. To fix this you can install pinentry-mac
 with `brew install pinentry-mac` and add the following to
 `.gnupg/gpg-agent.conf`:
 
@@ -72,15 +70,53 @@ Then restart the gpg-agent with `gpgconf --kill gpg-agent`.
 
 See `passata <command> --help` for more info on a specific command.
 
+Run `passata init` first: it asks for a GnuPG ID and a database path
+and writes the configuration file.
+
+## Password generation
+
+`passata generate [NAME]` creates a random password, copies it to the
+clipboard (cleared after `--timeout` seconds) and, if NAME is given,
+stores it in the database keeping the old password in `old_password`.
+
+- `-l/--length`: number of characters or words (default 20).
+- `-e/--entropy`: compute the length from the given bits of entropy
+  (takes precedence over `--length`).
+- `-s/--charset`: one of `letters`, `digits`, `alnum` or `full`
+  (default).
+- `-w/--wordlist`: generate a space separated passphrase from a
+  wordlist, given either as a path or as the name of one of the
+  installed wordlists (`bip39`, `eff_large_wordlist`, `markov`).
+
+## Configuration
+
+The configuration file is `~/.passata/config.yml`, and can be changed
+with `--config` or the `PASSATA_CONFIG_PATH` environment variable. Use
+`passata config` to edit it. Top level keys are global (`database`,
+`gpg_id`, `color`), while a key that maps to a dict overrides the
+default values of the options of the command with that name:
+
+    database: ~/.passata.gpg
+    gpg_id: user@example.com
+    color: true
+    generate:
+      length: 30
+      wordlist: eff_large_wordlist
+
+If `~/.passata/hooks/pre-read` or `~/.passata/hooks/post-write` exist
+and are executable, they are run before reading and after writing the
+database respectively. They can be used for syncing the database.
+
 ## Autotype (Linux only)
 
 By running `passata autotype`, passata tries to find the entry that
 matches the active window's title. Specifically it looks for entries
 whose name or any string in the `keywords` field, is included in the
 title (case insensitive). If there are zero or more than one such
-entries, the user is prompted to choose the right one using dmenu.
-Finally the sequence that is specified in the `autotype` field of the
-chosen entry is typed using xdotool.
+entries, the user is prompted to choose the right one using dmenu (or
+any other menu command given with `--menu`). Finally the sequence that
+is specified in the `autotype` field of the chosen entry is typed using
+xdotool.
 
 This is supposed to be used by adding a keybinding for `passata
 autotype` to your window manager's configuration.
