@@ -225,6 +225,11 @@ def is_entry(node: Node) -> bool:
     return any(not isinstance(v, dict) for v in node.values())
 
 
+def is_group(node: object) -> bool:
+    """Return whether a node is a group (a dict that is not an entry)."""
+    return isinstance(node, dict) and not is_entry(node)
+
+
 def split_path(name: str) -> list[str]:
     """Split a path into its components.
 
@@ -322,7 +327,7 @@ class DB:
         """Recursively walk the tree yielding paths to entries."""
         for key, value in node.items():
             path = f"{prefix}/{key}" if prefix else key
-            if isinstance(value, dict) and not is_entry(value):
+            if is_group(value):
                 yield from self._walk(value, path)
             else:
                 yield path
@@ -377,12 +382,8 @@ class DB:
 
     def get(self, name: str | None) -> Node | None:
         """Return database, group or entry at the given path."""
-        if not name or not name.strip("/"):
-            return self.db
-
-        parts = split_path(name)
         node = self.db
-        for part in parts:
+        for part in split_path(name) if name else []:
             if not isinstance(node, dict) or part not in node:
                 return None
             node = node[part]
@@ -396,37 +397,35 @@ class DB:
             self.pop(name)
             return
 
+        parts = split_path(name) if name else []
+
         # Put the whole database
-        if not name or not name.strip("/"):
+        if not parts:
             self.db = subdict
-            self.sort()
-            return
+        else:
+            # Navigate to the parent, creating intermediate groups
+            node = self.db
+            for part in parts[:-1]:
+                if part not in node:
+                    node[part] = {}
+                elif is_entry(node[part]):
+                    sys.exit(f"'{part}' is an entry, cannot create subpath")
+                node = node[part]
 
-        parts = split_path(name)
-
-        # Navigate to the parent, creating intermediate groups
-        node = self.db
-        for part in parts[:-1]:
-            if part not in node:
-                node[part] = {}
-            elif is_entry(node[part]):
-                sys.exit(f"'{part}' is an entry, cannot create subpath")
-            node = node[part]
-
-        # Set the leaf
-        node[parts[-1]] = subdict
+            # Set the leaf
+            node[parts[-1]] = subdict
 
         self.sort()
 
     def pop(self, name: str | None, force: bool = False) -> Node | None:
         """Remove node at path and every empty ancestor, return the removed node."""
+        parts = split_path(name) if name else []
+
         # Remove the whole database
-        if not name or not name.strip("/"):
+        if not parts:
             confirm("Delete the whole database?", force)
             self.db.clear()
             return None
-
-        parts = split_path(name)
 
         # Navigate to the parent, recording the path for cleanup
         ancestors: list[tuple[Node, str]] = []
@@ -441,8 +440,7 @@ class DB:
         if not isinstance(node, dict) or leaf not in node:
             return None
 
-        target = node[leaf]
-        if isinstance(target, dict) and not is_entry(target):
+        if is_group(node[leaf]):
             confirm(f"Delete group '{name}'?", force)
         else:
             confirm(f"Delete '{name}'?", force)
@@ -460,9 +458,7 @@ class DB:
         """List the immediate children of the database or a group."""
         node = self._get_group(name)
         lines = [
-            click.style(key, fg="blue", bold=True)
-            if isinstance(value, dict) and not is_entry(value)
-            else key
+            click.style(key, fg="blue", bold=True) if is_group(value) else key
             for key, value in node.items()
         ]
         if lines:
@@ -489,12 +485,12 @@ class DB:
         if not name:
             return self.db
 
-        name = name.rstrip("/")
         node = self.get(name)
+        label = name.rstrip("/")
         if node is None:
-            sys.exit(f"{name} not found")
+            sys.exit(f"{label} not found")
         if is_entry(node):
-            sys.exit(f"{name} is an entry, not a group")
+            sys.exit(f"{label} is an entry, not a group")
         return node
 
     def _render_tree(
@@ -514,10 +510,9 @@ class DB:
         items = list(node.items())
         for i, (key, value) in enumerate(items):
             is_last = i == len(items) - 1
-            is_group_node = isinstance(value, dict) and not is_entry(value)
             connector = "└── " if is_last else "├── "
 
-            if is_group_node:
+            if is_group(value):
                 styled = click.style(key, fg="blue", bold=True)
                 lines.append(f"{prefix}{connector}{styled}")
                 extension = "    " if is_last else "│   "
@@ -560,28 +555,21 @@ class DB:
             return [str(keywords).lower()]
         return []
 
-    def sort_node(self, node: Node) -> None:
-        """Put groups first, then sort groups and entries alphabetically."""
-        sorted_items = sorted(
-            node.items(),
-            key=lambda item: (
-                not isinstance(item[1], dict) or is_entry(item[1]),
-                item[0],
-            ),
-        )
-        node.clear()
-        node.update(sorted_items)
-
     def sort(self) -> None:
-        """Sort entries at every level of the database."""
+        """Sort entries at every level, groups first then alphabetically."""
 
-        def sort_recursive(node: Node) -> None:
+        def sort_node(node: Node) -> None:
             for value in node.values():
-                if isinstance(value, dict) and not is_entry(value):
-                    sort_recursive(value)
-            self.sort_node(node)
+                if is_group(value):
+                    sort_node(value)
+            sorted_items = sorted(
+                node.items(),
+                key=lambda item: (not is_group(item[1]), item[0]),
+            )
+            node.clear()
+            node.update(sorted_items)
 
-        sort_recursive(self.db)
+        sort_node(self.db)
 
     def execute_pre_read_hook(self) -> None:
         """Execute pre-read hook if existing."""
@@ -600,31 +588,21 @@ class DB:
         a group. At every level, each child must be a dict. A group must
         contain only dict values; an entry must contain only non-dict values.
         """
+
+        def validate_group(node: Node, path: str) -> None:
+            for key, value in node.items():
+                current = f"{path}/{key}" if path else key
+                if not isinstance(value, dict):
+                    sys.exit(f"'{current}' is not a dict")
+                if is_group(value):
+                    validate_group(value, current)
+                elif any(isinstance(field, dict) for field in value.values()):
+                    sys.exit(f"Entry '{current}' has mixed dict/non-dict values")
+
         if not isinstance(self.db, dict):
             sys.exit("Database is not a dict")
 
-        self._validate_group(self.db, "")
-
-    def _validate_group(self, node: Node, path: str) -> None:
-        """Recursively validate that a group node is well-formed."""
-        for key, value in node.items():
-            current = f"{path}/{key}" if path else key
-            if not isinstance(value, dict):
-                sys.exit(f"'{current}' is not a dict")
-            if is_entry(value):
-                # Leaf entry — check that all values are non-dict
-                for field_value in value.values():
-                    if isinstance(field_value, dict):
-                        sys.exit(
-                            f"Entry '{current}' has mixed dict/non-dict values",
-                        )
-            else:
-                # Sub-group — recurse
-                self._validate_group(value, current)
-
-    def is_empty(self) -> bool:
-        """Return whether the database is empty."""
-        return not self.db
+        validate_group(self.db, "")
 
 
 # Commands
@@ -795,7 +773,7 @@ def find(
     else:
         matches.tree()
 
-    if matches.is_empty() or not clip:
+    if not matches.db or not clip:
         return
 
     first_path = next(iter(matches))
@@ -1187,12 +1165,7 @@ def rm(obj: Obj, names: list[str], force: bool, recursive: bool) -> None:
     # Require --recursive for group removal
     for name in names:
         node = db.get(name)
-        if (
-            node is not None
-            and isinstance(node, dict)
-            and not is_entry(node)
-            and not recursive
-        ):
+        if is_group(node) and not recursive:
             sys.exit(f"Cannot remove '{name}': is a group, use -r to remove")
 
     if len(names) == 1:
