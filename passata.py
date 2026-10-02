@@ -309,10 +309,10 @@ class DB:
         """Initialize an empty database."""
         self.db: Database = {}
         self.data: str | None = None
-        self.path: Path | None = path
-        self.pre_read_hook: Path | None = pre_read_hook
-        self.post_write_hook: Path | None = post_write_hook
-        self.registered_post_write_hook: bool = False
+        self.path = path
+        self.pre_read_hook = pre_read_hook
+        self.post_write_hook = post_write_hook
+        self.registered_post_write_hook = False
 
     def __iter__(self) -> Iterator[str]:
         """Iterate over all entry paths in the database."""
@@ -333,7 +333,7 @@ class DB:
         return out(["gpg", "-d", str(path)])
 
     def read(self, lock: bool = False) -> None:
-        """Return the database as a plaintext string."""
+        """Read, decrypt and validate the database."""
         self.execute_pre_read_hook()
         assert self.path is not None
         if not self.path.is_file():
@@ -414,13 +414,13 @@ class DB:
 
     def pop(self, name: str | None, force: bool = False) -> Node | None:
         """Remove node at path and every empty ancestor, return the removed node."""
+        parts = split_path(name)
+
         # Remove the whole database
-        if not name or not name.strip("/"):
+        if not parts:
             confirm("Delete the whole database?", force)
             self.db.clear()
             return None
-
-        parts = split_path(name)
 
         # Navigate to the parent, recording the path for cleanup
         ancestors: list[tuple[Node, str]] = []
@@ -477,12 +477,12 @@ class DB:
         if not name:
             return self.db
 
-        name = name.rstrip("/")
         node = self.get(name)
+        label = name.rstrip("/")
         if node is None:
-            sys.exit(f"{name} not found")
+            sys.exit(f"{label} not found")
         if is_entry(node):
-            sys.exit(f"{name} is an entry, not a group")
+            sys.exit(f"{label} is an entry, not a group")
         return node
 
     def _render_tree(
@@ -541,11 +541,11 @@ class DB:
         entry = self.get(name)
         assert entry is not None
         keywords = entry.get("keywords")
-        if isinstance(keywords, list):
-            return [str(keyword).lower() for keyword in keywords]
-        if keywords is not None:
-            return [str(keywords).lower()]
-        return []
+        if keywords is None:
+            return []
+        if not isinstance(keywords, list):
+            keywords = [keywords]
+        return [str(keyword).lower() for keyword in keywords]
 
     def sort(self) -> None:
         """Sort entries at every level, groups first then alphabetically."""
@@ -598,6 +598,26 @@ class DB:
 
 
 # Commands
+force_option = click.option(
+    "-f",
+    "--force",
+    is_flag=True,
+    help="Do not prompt for confirmation.",
+)
+timeout_option = click.option(
+    "-t",
+    "--timeout",
+    default=45,
+    help="Number of seconds until the clipboard is cleared.",
+)
+editor_option = click.option(
+    "-e",
+    "--editor",
+    default=os.environ.get("EDITOR", "vim"),
+    help="Which editor to use.",
+)
+
+
 @click.group(
     context_settings={
         "help_option_names": ["-h", "--help"],
@@ -638,10 +658,9 @@ def cli(ctx: click.Context, config: Path, color: bool | None) -> None:
         ctx.color = color if color is not None else config_data.get("color")
         confdir = confpath.parent
 
-        path = confdir / "hooks" / "pre-read"
-        pre_read_hook = path if path.is_file() else None
-        path = confdir / "hooks" / "post-write"
-        post_write_hook = path if path.is_file() else None
+        def hook(name: str) -> Path | None:
+            path = confdir / "hooks" / name
+            return path if path.is_file() else None
 
         database = config_data["database"]
         if not isinstance(database, str):
@@ -649,8 +668,8 @@ def cli(ctx: click.Context, config: Path, color: bool | None) -> None:
 
         db = DB(
             path=Path(database).expanduser(),
-            pre_read_hook=pre_read_hook,
-            post_write_hook=post_write_hook,
+            pre_read_hook=hook("pre-read"),
+            post_write_hook=hook("post-write"),
         )
 
         # We put the config in obj for the options that
@@ -661,7 +680,7 @@ def cli(ctx: click.Context, config: Path, color: bool | None) -> None:
 
 
 @cli.command()
-@click.option("-f", "--force", is_flag=True, help="Do not prompt for confirmation.")
+@force_option
 @click.option(
     "-g",
     "--gpg-id",
@@ -691,12 +710,7 @@ def init(obj: Obj, force: bool, gpg_id: str, path: Path) -> None:
 
 
 @cli.command()
-@click.option(
-    "-e",
-    "--editor",
-    default=os.environ.get("EDITOR", "vim"),
-    help="Which editor to use.",
-)
+@editor_option
 @click.pass_obj
 def config(obj: Obj, editor: str) -> None:
     """Edit the configuration file."""
@@ -737,12 +751,7 @@ def tree(obj: Obj, group: str | None) -> None:
     default=False,
     help="Copy the first result's password to clipboard.",
 )
-@click.option(
-    "-t",
-    "--timeout",
-    default=45,
-    help="Number of seconds until the clipboard is cleared.",
-)
+@timeout_option
 @click.argument("names", nargs=-1)
 @click.pass_obj
 def find(
@@ -787,12 +796,7 @@ def find(
     default=False,
     help="Whether to copy password to clipboard or print.",
 )
-@click.option(
-    "-t",
-    "--timeout",
-    default=45,
-    help="Number of seconds until the clipboard is cleared.",
-)
+@timeout_option
 @click.argument("name", required=False)
 @click.pass_obj
 def show(obj: Obj, name: str | None, clip: bool, timeout: int) -> None:
@@ -850,7 +854,7 @@ def do_insert(obj: Obj, name: str, password: str, force: bool) -> str | None:
 
 @cli.command()
 @click.argument("name")
-@click.option("-f", "--force", is_flag=True, help="Do not prompt for confirmation.")
+@force_option
 @click.password_option(help="Give password instead of being prompted for it.")
 @click.pass_obj
 def insert(obj: Obj, name: str, force: bool, password: str) -> None:
@@ -942,7 +946,7 @@ def generate_password(
 
 @cli.command()
 @click.argument("name", required=False)
-@click.option("-f", "--force", is_flag=True, help="Do not prompt for confirmation.")
+@force_option
 @click.option("-p/-P", "--print/--no-print", "print_", help="Print the password.")
 @click.option(
     "-c/-C",
@@ -950,12 +954,7 @@ def generate_password(
     default=True,
     help="Copy password to clipboard.",
 )
-@click.option(
-    "-t",
-    "--timeout",
-    default=45,
-    help="Number of seconds until the clipboard is cleared.",
-)
+@timeout_option
 @click.option(
     "-l",
     "--length",
@@ -1042,12 +1041,7 @@ def generate(
 
 @cli.command()
 @click.argument("name", required=False)
-@click.option(
-    "-e",
-    "--editor",
-    default=os.environ.get("EDITOR", "vim"),
-    help="Which editor to use.",
-)
+@editor_option
 @click.pass_obj
 def edit(obj: Obj, name: str | None, editor: str) -> None:
     """Edit entry, group or the whole database."""
@@ -1140,7 +1134,7 @@ def edit(obj: Obj, name: str | None, editor: str) -> None:
 
 @cli.command()
 @click.argument("names", nargs=-1, required=True, metavar="ENTRY/GROUP...")
-@click.option("-f", "--force", is_flag=True, help="Do not prompt for confirmation.")
+@force_option
 @click.option(
     "-r",
     "--recursive",
@@ -1155,20 +1149,16 @@ def rm(obj: Obj, names: list[str], force: bool, recursive: bool) -> None:
 
     # Require --recursive for group removal
     for name in names:
-        node = db.get(name)
-        if is_group(node) and not recursive:
+        if is_group(db.get(name)) and not recursive:
             sys.exit(f"Cannot remove '{name}': is a group, use -r to remove")
 
-    if len(names) == 1:
-        if db.pop(names[0], force) is None:
-            sys.exit(f"{names[0]} not found")
-        db.write(obj["gpg_id"])
-        return
-
-    confirm(f"Delete {len(names)} arguments?", force)
+    # With multiple arguments, ask once instead of once per argument
+    if len(names) > 1:
+        confirm(f"Delete {len(names)} arguments?", force)
+        force = True
 
     for name in names:
-        if db.pop(name, force=True) is None:
+        if db.pop(name, force) is None:
             sys.exit(f"{name} not found")
 
     db.write(obj["gpg_id"])
@@ -1207,30 +1197,29 @@ def _mv_entry(db: DB, src: str, dest: str, force: bool) -> None:
 @cli.command(short_help="Move or rename entries.")
 @click.argument("source", nargs=-1, required=True)
 @click.argument("dest", metavar="DEST/GROUP")
-@click.option("-f", "--force", is_flag=True, help="Do not prompt for confirmation.")
+@force_option
 @click.pass_obj
 def mv(obj: Obj, source: tuple[str, ...], dest: str, force: bool) -> None:
     """Rename SOURCE to DEST or move SOURCE(s) to GROUP."""
     db: DB = obj["_db"]
     db.read(lock=True)
 
-    if len(source) > 1 and not _is_group_dest(db, dest):
-        sys.exit(f"{dest} is not a group")
-
-    if len(source) == 1:
-        src = source[0].rstrip("/")
-        src_node = db.get(src)
-        if src_node is None:
-            sys.exit(f"{src} not found")
-        if not is_entry(src_node):
-            _mv_group(db, src, dest)
-        else:
-            _mv_entry(db, src, dest, force)
-    else:
+    if len(source) > 1:
+        if not _is_group_dest(db, dest):
+            sys.exit(f"{dest} is not a group")
         for name in source:
             if db.get(name) is None:
                 sys.exit(f"{name} not found")
             _mv_entry(db, name, dest, force)
+    else:
+        src = source[0].rstrip("/")
+        src_node = db.get(src)
+        if src_node is None:
+            sys.exit(f"{src} not found")
+        if is_group(src_node):
+            _mv_group(db, src, dest)
+        else:
+            _mv_entry(db, src, dest, force)
 
     db.write(obj["gpg_id"])
 
@@ -1285,6 +1274,7 @@ def autotype(obj: Obj, sequence: str, delay: str, menu: str | list[str]) -> None
     db: DB = obj["_db"]
     db.read()
     window = active_window()
+    title = window[1].lower()
 
     # Put the entries that match the window title in `matches`, and every entry
     # in `names`, to fall back to that if there are no matches.
@@ -1294,7 +1284,6 @@ def autotype(obj: Obj, sequence: str, delay: str, menu: str | list[str]) -> None
         names.append(path)
         entryname = split_path(path)[-1]
         keywords = [entryname.lower(), *db.keywords(path)]
-        title = window[1].lower()
         if any(keyword in title for keyword in keywords):
             matches.append(path)
 
