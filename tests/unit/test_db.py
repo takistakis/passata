@@ -21,7 +21,27 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from passata import DB
+from passata import DB, is_entry, split_path
+
+
+def test_is_entry_empty_dict() -> None:
+    assert not is_entry({})
+
+
+def test_split_path_rejects_empty_component() -> None:
+    with pytest.raises(SystemExit, match="Invalid path: group//entry"):
+        split_path("group//entry")
+
+
+def test_put_rejects_subpath_of_entry() -> None:
+    db = DB(path=None)
+    db.db = {"entry": {"password": "pass"}}
+
+    with pytest.raises(
+        SystemExit,
+        match="'entry' is an entry, cannot create subpath",
+    ):
+        db.put("entry/child", {"password": "child"})
 
 
 class TestHooks:
@@ -102,18 +122,33 @@ class TestValidate:
                 "group1": ["not", "a", "dict"],
             },
         )
-        with pytest.raises(SystemExit, match="Group 'group1' is not a dict"):
+        with pytest.raises(SystemExit, match="'group1' is not a dict"):
             db.validate()
 
     def test_validate_entry_not_dict(self) -> None:
         db = self.make_db_with_structure(
             {
+                "toplevel": "not a dict",
+            },
+        )
+        with pytest.raises(SystemExit, match="'toplevel' is not a dict"):
+            db.validate()
+
+    def test_validate_mixed_entry(self) -> None:
+        db = self.make_db_with_structure(
+            {
                 "group1": {
-                    "entry1": "not a dict",
+                    "entry1": {
+                        "password": "pass",
+                        "nested": {"key": "value"},
+                    },
                 },
             },
         )
-        with pytest.raises(SystemExit, match="Entry 'entry1' is not a dict"):
+        with pytest.raises(
+            SystemExit,
+            match="Entry 'group1/entry1' has mixed dict/non-dict values",
+        ):
             db.validate()
 
 

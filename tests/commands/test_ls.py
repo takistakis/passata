@@ -61,3 +61,50 @@ def test_ls_nonexistent_group() -> None:
 
     assert isinstance(result.exception, SystemExit)
     assert result.output == "nonexistent not found\n"
+
+
+# Tests for nested/filesystem-like paths
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_ls_nested_db() -> None:
+    result = run(["ls"])
+
+    assert result.output == dedent("""\
+        internet
+        ├── github
+        └── social
+            ├── reddit
+            └── twitter
+        server
+    """)
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_ls_nested_group() -> None:
+    result = run(["ls", "internet/social"])
+
+    assert result.output == dedent("""\
+        reddit
+        twitter
+    """)
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_ls_nested_no_tree() -> None:
+    result = run(["ls", "--no-tree"])
+
+    assert result.output == dedent("""\
+        internet/github
+        internet/social/reddit
+        internet/social/twitter
+        server
+    """)
+
+
+@pytest.mark.usefixtures("nested_db")
+def test_ls_entry_not_group() -> None:
+    result = run(["ls", "server"])
+
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "server is an entry, not a group\n"

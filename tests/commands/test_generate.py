@@ -293,6 +293,9 @@ def test_generate_put_in_new_entry_print(db: Path) -> None:
     result = run(["generate", "asdf/test", "--print", "--no-clip"])
     assert_password_in_output(result)
     assert read(db) == dedent("""\
+        asdf:
+          test:
+            password: xxxxxxxxxxxxxxxxxxxx
         internet:
           github:
             password: gh
@@ -300,9 +303,6 @@ def test_generate_put_in_new_entry_print(db: Path) -> None:
           reddit:
             password: rdt
             username: sakis
-        asdf:
-          test:
-            password: xxxxxxxxxxxxxxxxxxxx
     """)
 
 
