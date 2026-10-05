@@ -921,16 +921,28 @@ def generate_password(
     if wordlist is not None:
         wordlist_path = resolve_wordlist(wordlist)
         try:
-            pool = wordlist_path.read_text().strip().split("\n")
+            pool = [
+                word for word in wordlist_path.read_text().splitlines() if word.strip()
+            ]
         except FileNotFoundError:
             sys.exit(f"{wordlist_path}: No such file or directory")
     else:
         pool = CHARSETS[charset]
 
+    if not pool:
+        sys.exit("The selected password pool is empty")
+
     if entropy is not None:
+        if not math.isfinite(entropy) or entropy <= 0:
+            sys.exit("Entropy must be a finite positive number")
+        if len(pool) == 1:
+            sys.exit("Cannot calculate password length for a one-item pool")
         length = math.ceil(entropy / math.log2(len(pool)))
     else:
         assert length is not None
+
+    if length <= 0:
+        sys.exit("Password length must be greater than zero")
 
     entropy = length * math.log2(len(pool))
 
