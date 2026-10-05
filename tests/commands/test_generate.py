@@ -23,6 +23,7 @@ import sys
 from collections.abc import Generator
 from pathlib import Path
 from textwrap import dedent
+from unittest.mock import Mock
 
 import click
 import pytest
@@ -140,10 +141,12 @@ def test_generate_password_short(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(password) == 4
 
 
-def test_generate_passphrase(tmp_path: Path) -> None:
+def test_generate_passphrase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     words = ["asdf", "test", "piou"]
     wordpath = tmp_path / "words"
-    wordpath.write_text("\n".join(words))
+    wordpath.write_text("\n\n".join(words) + "\n")
+    choice = Mock(return_value=words[0])
+    monkeypatch.setattr(passata.random.SystemRandom, "choice", choice)
 
     passphrase = passata.generate_password(
         length=5,
@@ -156,6 +159,59 @@ def test_generate_passphrase(tmp_path: Path) -> None:
     passphrase_parts = passphrase.split()
     assert len(passphrase_parts) == 5
     assert all(word in words for word in passphrase_parts)
+    assert choice.call_count == 5
+    assert all(args == (words,) for args, _ in choice.call_args_list)
+
+
+def test_generate_rejects_empty_wordlists_and_invalid_sizes(
+    tmp_path: Path,
+) -> None:
+    wordpath = tmp_path / "empty-words"
+    wordpath.write_text("\n \r\n")
+    with pytest.raises(SystemExit, match="The selected password pool is empty"):
+        passata.generate_password(
+            length=5,
+            entropy=None,
+            charset="full",
+            wordlist=str(wordpath),
+            force=True,
+        )
+
+    for entropy in [0, -1, float("nan"), float("inf")]:
+        with pytest.raises(
+            SystemExit,
+            match="Entropy must be a finite positive number",
+        ):
+            passata.generate_password(
+                length=None,
+                entropy=entropy,
+                charset="digits",
+                wordlist=None,
+                force=True,
+            )
+
+    single_word_path = tmp_path / "single-word"
+    single_word_path.write_text("only-word\n")
+    with pytest.raises(
+        SystemExit,
+        match="Cannot calculate password length for a one-item pool",
+    ):
+        passata.generate_password(
+            length=None,
+            entropy=128,
+            charset="full",
+            wordlist=str(single_word_path),
+            force=True,
+        )
+
+    with pytest.raises(SystemExit, match="Password length must be greater than zero"):
+        passata.generate_password(
+            length=0,
+            entropy=None,
+            charset="digits",
+            wordlist=None,
+            force=True,
+        )
 
 
 def test_generate_passphrase_file_not_found(tmp_path: Path) -> None:
