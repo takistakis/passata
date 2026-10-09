@@ -148,7 +148,6 @@ def test_edit_delete_entry(
             password: rdt
             username: sakis
     """)
-    passata.unlock_file(db)
     # Confirm
     monkeypatch.setattr(click, "confirm", lambda _: True)
     result = run(["edit", "internet/reddit"])
@@ -266,7 +265,6 @@ def test_edit_delete_database(
     assert result.exit_code == 0
     assert result.exception is None
     assert read(db) == original
-    passata.unlock_file(db)
     # Confirm
     monkeypatch.setattr(click, "confirm", lambda _: True)
     result = run(["edit"])

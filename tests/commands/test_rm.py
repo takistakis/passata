@@ -17,12 +17,14 @@
 
 """Tests for passata rm."""
 
+from copy import deepcopy
 from pathlib import Path
 from textwrap import dedent
 
 import click
 import pytest
 
+import passata
 from tests.helpers import read, run
 
 
@@ -136,3 +138,53 @@ def test_rm_nested_cleans_empty_parents(nested_db: Path) -> None:
     # social group should be gone since both children were removed
     assert "social" not in content
     assert "github" in content
+
+
+@pytest.mark.parametrize("contents", [None, ""])
+def test_rm_whole_database(db: Path, contents: str | None) -> None:
+    if contents is not None:
+        db.write_text(contents)
+    result = run(["rm", "--force", "--recursive", "/"])
+
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert read(db) == ""
+
+
+def test_rm_whole_database_declined(db: Path) -> None:
+    original = read(db)
+    result = run(["rm", "--recursive", "/"], input_="n\n")
+
+    assert result.exit_code == 0
+    assert "Delete the whole database?" in result.output
+    assert read(db) == original
+
+
+def test_rm_late_failure_is_atomic(db: Path) -> None:
+    original = read(db)
+    result = run(["rm", "--force", "internet/reddit", "missing"])
+
+    assert result.exit_code == 1
+    assert result.output == "missing not found\n"
+    assert read(db) == original
+
+
+def test_rm_late_failure_preserves_memory(
+    db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = passata.DB(db)
+    database.read()
+    original = deepcopy(database.db)
+    monkeypatch.setattr(database, "read", lambda **_: None)
+    with (
+        click.Context(passata.cli, obj={"_db": database, "gpg_id": "unused"}) as ctx,
+        pytest.raises(SystemExit, match="missing not found"),
+    ):
+        ctx.invoke(
+            passata.rm,
+            names=["internet/reddit", "missing"],
+            force=True,
+            recursive=False,
+        )
+    assert database.db == original

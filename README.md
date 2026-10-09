@@ -88,6 +88,26 @@ stores it in the database keeping the old password in `old_password`.
   wordlist, given either as a path or as the name of one of the
   installed wordlists (`bip39`, `eff_large_wordlist`, `markov`).
 
+Clipboard timeouts must be nonnegative; `--timeout 0` disables clearing.
+Entropy targets that exceed the runtime's supported password length are
+rejected before generation.
+
+## Moving and renaming
+
+`passata mv SOURCE DEST` renames an entry or group. An entry is moved
+into an existing group, or into a new group when DEST ends with `/`.
+Use `passata mv SOURCE... GROUP` to move several entries into a group,
+and `/` as the destination to move entries to the database root.
+Entry overwrites require confirmation unless `-f/--force` is given;
+group renames cannot overwrite existing nodes or move into their own
+subdirectories, including when moving multiple sources. Moves preserve
+empty groups. Failed or cancelled moves and removals leave the database
+unchanged. Use
+`passata rm -rf /` to clear the whole database.
+
+Passata uses persistent `.lock` files and `flock` to prevent concurrent writers.
+An idle lock file is normal and must not be deleted while a writer is running.
+
 ## Configuration
 
 The configuration file is `~/.passata/config.yml`, and can be changed
@@ -105,7 +125,9 @@ default values of the options of the command with that name:
 
 If `~/.passata/hooks/pre-read` or `~/.passata/hooks/post-write` exist
 and are executable, they are run before reading and after writing the
-database respectively. They can be used for syncing the database.
+database respectively. The post-write hook runs once at command completion,
+after output and clipboard handling, while the writer lock is still held.
+They can be used for syncing the database.
 
 ## Autotype (Linux only)
 

@@ -41,13 +41,14 @@ def test_command_not_found() -> None:
 def background_lock(db: Path) -> None:
     # Assign the lock to a variable to keep it in scope and prevent the file
     # from closing.
-    lock = passata.lock_file(db)  # noqa: F841
-    time.sleep(1)
+    lock = passata.lock_file(db)
+    try:
+        time.sleep(1)
+    finally:
+        passata.unlock_file(lock)
 
 
 def test_lock(db: Path) -> None:
-    # lockf locks are bound to processes, not file descriptors
-    # so we have to use a forked process to properly test this.
     process = multiprocessing.Process(target=background_lock, args=(db,))
     process.start()
     time.sleep(0.5)
@@ -62,13 +63,7 @@ def test_lock(db: Path) -> None:
     assert result.output == ""
     assert result.exception is None
 
-    # The file is normally unlocked and deleted when the
-    # program exits (see: atexit), which hasn't happened yet.
-    # The first time we call unlock_file, we explicitly unlock it.
-    passata.unlock_file(db)
-    # The second, we do nothing but no error is raised
-    # either, because we ignore any FileNotFoundError.
-    passata.unlock_file(db)
+    assert db.with_suffix(".lock").is_file()
 
 
 def test_default_gpg_id(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -122,6 +117,89 @@ def test_invalid_database_config(
     result = run(["show", "internet/github"])
     assert isinstance(result.exception, SystemExit)
     assert result.output.startswith("Value for database")
+
+
+@pytest.mark.parametrize("contents", ["- list\n", "scalar\n", "null\n"])
+def test_invalid_config_shape(
+    tmp_path: Path,
+    contents: str,
+) -> None:
+    confpath = tmp_path / "config.yml"
+    confpath.write_text(contents)
+    result = run(["--config", str(confpath), "show"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert result.output == "Invalid configuration\n"
+
+
+@pytest.mark.parametrize("contents", ["value: [unclosed", "---\n{}\n---\n{}\n"])
+def test_invalid_config_yaml(tmp_path: Path, contents: str) -> None:
+    confpath = tmp_path / "config.yml"
+    confpath.write_text(contents)
+    result = run(["--config", str(confpath), "show"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert result.output.startswith("Invalid configuration YAML:")
+
+
+@pytest.mark.parametrize("contents", ["", "# empty config\n", "gpg_id: test\n"])
+def test_missing_database_config(tmp_path: Path, contents: str) -> None:
+    confpath = tmp_path / "config.yml"
+    confpath.write_text(contents)
+    result = run(["--config", str(confpath), "show"])
+
+    assert result.exit_code == 1
+    assert result.output == "Value for database (None) is not a valid string\n"
+
+
+@pytest.mark.parametrize("command", ["show", "find", "generate"])
+@pytest.mark.parametrize("configured", [False, True])
+def test_rejects_negative_clipboard_timeout(
+    db: Path,
+    command: str,
+    configured: bool,
+) -> None:
+    args = [command]
+    if configured:
+        confpath = Path(passata.os.environ["PASSATA_CONFIG_PATH"])
+        with confpath.open("a") as config:
+            config.write(f"{command}:\n  timeout: -1\n")
+    else:
+        args.extend(["--timeout", "-1"])
+    original = db.read_text()
+    result = run(args)
+
+    assert result.exit_code == 2
+    assert "Invalid value for '-t' / '--timeout'" in result.output
+    assert db.read_text() == original
+
+
+@pytest.mark.usefixtures("db")
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["show", "internet/github", "--clip"],
+        ["find", "github", "--clip"],
+        ["generate", "--clip"],
+    ],
+)
+def test_zero_clipboard_timeout_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+    args: list[str],
+) -> None:
+    timeouts = []
+
+    def copy(data: str, timeout: int) -> None:
+        assert isinstance(data, str)
+        timeouts.append(timeout)
+
+    monkeypatch.setattr(passata, "to_clipboard", copy)
+    result = run([*args, "--timeout", "0"])
+
+    assert result.exit_code == 0
+    assert timeouts == [0]
 
 
 def test_keywords(db: Path) -> None:
