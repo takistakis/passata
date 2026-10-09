@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import atexit
+import errno
 import fcntl
 import math
 import os
@@ -33,7 +34,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from contextlib import suppress
+from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TextIO
 
@@ -75,12 +76,13 @@ def call(
             command,
             input=input_,
             stdout=stdout,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             check=True,
             text=True,
         )
     except subprocess.CalledProcessError as e:
-        sys.exit(str(e))
+        detail = f"\n{e.stderr.strip()}" if e.stderr and e.stderr.strip() else ""
+        sys.exit(f"{e}{detail}")
     except FileNotFoundError:
         path = command[0] if isinstance(command, list) else command
         sys.exit(f"Executable '{path}' not found")
@@ -141,38 +143,69 @@ def die(message: str) -> None:
 
 
 def lock_file(path: Path) -> TextIO:
-    """Open and lock a temporary file associated with `path`.
+    """Open and lock a file associated with `path`.
 
-    The lock file is deleted when the program exits.
+    The lock file is kept so competing processes always lock the same inode.
 
     Locking ensures only one passata process can modify the database at a time.
     Read-only commands should not acquire the lock.
     """
-    # Don't lock the file itself because the lock would get lost on
-    # write, and if we're editing, it could be written multiple times.
-    lockpath = path.with_name(f"{path.name}.lock")
+    # Canonical paths ensure aliases through symlinked directories share one lock.
+    try:
+        canonical = path.resolve()
+        if not canonical.parent.is_dir():
+            sys.exit("Couldn't open lock file: database directory does not exist")
+        state = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
+        directory = state / "passata" / "locks"
+        directory.mkdir(parents=True, exist_ok=True)
+        if directory.is_symlink() or directory.stat().st_uid != os.geteuid():
+            sys.exit("Lock directory must be a directory owned by the current user")
+        directory.chmod(0o700)
+        digest = 0xCBF29CE484222325
+        for byte in os.fsencode(canonical):
+            digest = ((digest ^ byte) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+        lockpath = directory / f"database-{digest:016x}.lock"
+    except OSError as error:
+        sys.exit(f"Couldn't resolve database lock: {error}")
 
     # Open with 'a' (append) to prevent truncation
-    lock = lockpath.open("a")
     try:
-        fcntl.lockf(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        sys.exit("Another passata process is editing the database")
+        fd = os.open(
+            lockpath,
+            os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW,
+            0o600,
+        )
+        lock = os.fdopen(fd, "a")
+    except OSError as error:
+        sys.exit(f"Couldn't open lock file {lockpath}: {error}")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as error:
+        lock.close()
+        if error.errno in (errno.EAGAIN, errno.EACCES):
+            sys.exit("Another passata process is editing the database")
+        sys.exit(f"Couldn't lock database: {error}")
 
-    atexit.register(unlock_file, path)
-
-    # Register the lock file's file descriptor to prevent it from closing.
-    # If there is no current context, the caller must keep the lock alive.
-    with suppress(RuntimeError):
-        click.get_current_context().obj["_lock"] = lock
+    context = click.get_current_context(silent=True)
+    if context is None:
+        atexit.register(unlock_file, lock)
+    else:
+        context = context.find_root()
+        context.obj["_lock"] = lock
+        context.call_on_close(lambda: unlock_file(lock))
 
     return lock
 
 
-def unlock_file(path: Path) -> None:
-    """Remove the lock file, which also releases the lock."""
-    lockpath = path.with_name(f"{path.name}.lock")
-    lockpath.unlink(missing_ok=True)
+def unlock_file(lock: TextIO) -> None:
+    """Release a lock by closing its handle, leaving the lock file in place."""
+    if not lock.closed:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+        except OSError as error:
+            click.echo(f"Couldn't unlock database: {error}", err=True)
+        finally:
+            lock.close()
 
 
 def schedule_clear_clipboard(timeout: int) -> None:
@@ -251,7 +284,11 @@ def to_dict(data: str | None) -> Node:
     if not data:
         return {}
 
-    return yaml.safe_load(data)
+    documents = list(yaml.safe_load_all(data))
+    if len(documents) > 1:
+        message = "multiple documents"
+        raise yaml.error.YAMLError(message)
+    return documents[0] if documents else {}
 
 
 def to_string(data: Node | None) -> str:
@@ -272,9 +309,16 @@ def to_string(data: Node | None) -> str:
 def read_config(confpath: Path) -> Config:
     """Read the configuration file and return it as a dict."""
     try:
-        return to_dict(confpath.read_text())
+        config = to_dict(confpath.read_text())
     except FileNotFoundError:
         sys.exit("Run `passata init` first")
+    except OSError as error:
+        sys.exit(f"Couldn't read configuration: {error}")
+    except yaml.error.YAMLError as error:
+        sys.exit(f"Invalid configuration YAML: {error}")
+    if not isinstance(config, dict):
+        sys.exit("Invalid configuration")
+    return config
 
 
 def write_config(confpath: Path, config: Config, force: bool) -> None:
@@ -313,6 +357,7 @@ class DB:
         self.pre_read_hook = pre_read_hook
         self.post_write_hook = post_write_hook
         self.registered_post_write_hook = False
+        self._context = click.get_current_context(silent=True)
 
     def __iter__(self) -> Iterator[str]:
         """Iterate over all entry paths in the database."""
@@ -341,7 +386,10 @@ class DB:
         if lock:
             lock_file(self.path)
         self.data = self.decrypt(self.path)
-        self.db = to_dict(self.data)
+        try:
+            self.db = to_dict(self.data)
+        except yaml.error.YAMLError as error:
+            sys.exit(f"Invalid database YAML: {error}")
         self.validate()
 
     @staticmethod
@@ -361,18 +409,24 @@ class DB:
         # Write to a temporary file, make sure the data has reached the
         # disk and replace the database with the temporary file using
         # Path.replace() which is guaranteed to be an atomic operation.
+        target = self.path.resolve()
         with tempfile.NamedTemporaryFile(
             mode="w",
-            dir=self.path.parent,
+            dir=target.parent,
             delete=False,
         ) as temp:
             temp.write(encrypted)
             temp.flush()
             os.fsync(temp.fileno())
-        Path(temp.name).replace(self.path)
+        Path(temp.name).replace(target)
         self.data = data
         if not self.registered_post_write_hook:
-            atexit.register(self.execute_post_write_hook)
+            # Context callbacks run in reverse order, before the lock is closed.
+            # Retain the command context for writes from the editor's watcher.
+            if self._context is None:
+                atexit.register(self.finish)
+            else:
+                self._context.call_on_close(self.finish)
             self.registered_post_write_hook = True
 
     def get(self, name: str | None) -> Node | None:
@@ -385,10 +439,19 @@ class DB:
 
         return node
 
-    def put(self, name: str | None, subdict: Node | None) -> None:
-        """Add or replace subdict, creating intermediate groups as needed."""
+    def put(
+        self,
+        name: str | None,
+        subdict: Node | None,
+        *,
+        keep_empty: bool = False,
+    ) -> None:
+        """Add or replace subdict, creating intermediate groups as needed.
+
+        Empty dicts remove the node unless `keep_empty` is set.
+        """
         # Remove if given empty dict
-        if not subdict:
+        if subdict is None or (not subdict and not keep_empty):
             self.pop(name)
             return
 
@@ -573,6 +636,13 @@ class DB:
         if self.post_write_hook is not None:
             call(self.post_write_hook)
 
+    def finish(self) -> None:
+        """Report post-write hook failures without changing the command's status."""
+        try:
+            self.execute_post_write_hook()
+        except SystemExit as error:
+            click.echo(str(error), err=True)
+
     def validate(self) -> None:
         """Validate the database.
 
@@ -583,6 +653,8 @@ class DB:
 
         def validate_group(node: Node, path: str) -> None:
             for key, value in node.items():
+                if not isinstance(key, str):
+                    sys.exit("Database contains a non-string key")
                 current = f"{path}/{key}" if path else key
                 if not isinstance(value, dict):
                     sys.exit(f"'{current}' is not a dict")
@@ -607,6 +679,8 @@ force_option = click.option(
 timeout_option = click.option(
     "-t",
     "--timeout",
+    type=click.IntRange(0),
+    metavar="INTEGER",
     default=45,
     help="Number of seconds until the clipboard is cleared.",
 )
@@ -662,7 +736,7 @@ def cli(ctx: click.Context, config: Path, color: bool | None) -> None:
             path = confdir / "hooks" / name
             return path if path.is_file() else None
 
-        database = config_data["database"]
+        database = config_data.get("database")
         if not isinstance(database, str):
             sys.exit(f"Value for database ({database}) is not a valid string")
 
@@ -924,8 +998,8 @@ def generate_password(
             pool = [
                 word for word in wordlist_path.read_text().splitlines() if word.strip()
             ]
-        except FileNotFoundError:
-            sys.exit(f"{wordlist_path}: No such file or directory")
+        except OSError as error:
+            sys.exit(f"{wordlist_path}: {error}")
     else:
         pool = CHARSETS[charset]
 
@@ -937,7 +1011,10 @@ def generate_password(
             sys.exit("Entropy must be a finite positive number")
         if len(pool) == 1:
             sys.exit("Cannot calculate password length for a one-item pool")
-        length = math.ceil(entropy / math.log2(len(pool)))
+        count = entropy / math.log2(len(pool))
+        if not math.isfinite(count) or count > sys.maxsize:
+            sys.exit("Requested entropy is too large")
+        length = math.ceil(count)
     else:
         assert length is not None
 
@@ -970,7 +1047,7 @@ def generate_password(
 @click.option(
     "-l",
     "--length",
-    type=click.IntRange(1),
+    type=click.IntRange(1, sys.maxsize),
     metavar="INTEGER",
     default=20,
     help="Length of the generated password.",
@@ -1055,8 +1132,25 @@ def generate(
 @click.argument("name", required=False)
 @editor_option
 @click.pass_obj
-def edit(obj: Obj, name: str | None, editor: str) -> None:
+def edit(obj: Obj, name: str | None, editor: str) -> None:  # noqa: C901
     """Edit entry, group or the whole database."""
+
+    def save(data: Node) -> None:
+        pending = DB(path=None)
+        pending.db = deepcopy(db.db)
+        pending.put(name, data)
+        pending.validate()
+        db.db = pending.db
+        db.write(obj["gpg_id"])
+
+    def parse(updated: str) -> Node:
+        data = to_dict(updated)
+        if data is None:
+            return {}
+        if not isinstance(data, dict):
+            message = "Expected a mapping"
+            raise yaml.error.YAMLError(message)
+        return data
 
     class EventHandler(watchdog.events.PatternMatchingEventHandler):
         """Write database when temp file is modified."""
@@ -1064,6 +1158,7 @@ def edit(obj: Obj, name: str | None, editor: str) -> None:
         def __init__(self, path: str) -> None:
             self.path = path
             self.last_content: str | None = None
+            self.last_saved: str | None = None
             super().__init__(
                 patterns=["*.yml"],
                 ignore_directories=True,
@@ -1072,7 +1167,7 @@ def edit(obj: Obj, name: str | None, editor: str) -> None:
 
         def on_modified(self, event: watchdog.events.FileSystemEvent) -> None:
             src_path = os.fsdecode(event.src_path)
-            if self.path not in src_path:
+            if self.path != src_path:
                 return
 
             updated = Path(src_path).read_text()
@@ -1085,14 +1180,18 @@ def edit(obj: Obj, name: str | None, editor: str) -> None:
             # ignore it. Once the editor exits, we will
             # read it one last time and handle it properly.
             try:
-                data = to_dict(updated)
+                data = parse(updated)
             except yaml.error.YAMLError:
-                send_notification("Invalid yaml, changes not saved")
+                click.echo("Invalid yaml, changes not saved", err=True)
                 return
             if not data:
                 return
-            db.put(name, data)
-            db.write(obj["gpg_id"])
+            try:
+                save(data)
+            except SystemExit as error:
+                click.echo(f"{error}, changes not saved", err=True)
+                return
+            self.last_saved = updated
 
     db: DB = obj["_db"]
     db.read(lock=True)
@@ -1116,30 +1215,31 @@ def edit(obj: Obj, name: str | None, editor: str) -> None:
         directory = temppath.parent
         event_handler = EventHandler(str(temppath))
         event_handler.last_content = text
+        event_handler.last_saved = text
         observer = watchdog.observers.Observer()
         observer.schedule(event_handler, path=str(directory), recursive=True)
         observer.start()
 
-        click.edit(filename=str(temppath), editor=editor)
-
-        observer.stop()
-        observer.join()
+        try:
+            click.edit(filename=str(temppath), editor=editor)
+        finally:
+            observer.stop()
+            observer.join()
 
         # Read the file one last time. It may have already been read
         # in the handler, but it's not guaranteed. If for example the
         # user saved and exited the editor, there is a race condition.
         updated = temppath.read_text()
 
-        if updated == text:
+        if updated == event_handler.last_saved:
             return
 
         try:
-            data = to_dict(updated)
+            data = parse(updated)
         except yaml.error.YAMLError:
             sys.exit("Invalid yaml")
         else:
-            db.put(name, data)
-            db.write(obj["gpg_id"])
+            save(data)
     finally:
         temppath.unlink(missing_ok=True)
 
@@ -1164,21 +1264,28 @@ def rm(obj: Obj, names: list[str], force: bool, recursive: bool) -> None:
         if is_group(db.get(name)) and not recursive:
             sys.exit(f"Cannot remove '{name}': is a group, use -r to remove")
 
+    pending = DB(path=None)
+    pending.db = deepcopy(db.db)
+
     # With multiple arguments, ask once instead of once per argument
     if len(names) > 1:
         confirm(f"Delete {len(names)} arguments?", force)
         force = True
 
     for name in names:
-        if db.pop(name, force) is None:
+        if not split_path(name):
+            pending.pop(name, force)
+        elif pending.pop(name, force) is None:
             sys.exit(f"{name} not found")
 
+    db.db = pending.db
     db.write(obj["gpg_id"])
 
 
 def _is_group_dest(db: DB, dest: str) -> bool:
     """Return whether `dest` refers to a group, existing or hinted by a slash."""
-    return dest.endswith("/") or is_group(db.get(dest.rstrip("/")))
+    node = db.get(dest)
+    return dest.endswith("/") or is_group(node)
 
 
 def _mv_group(db: DB, src: str, dest: str) -> None:
@@ -1189,7 +1296,7 @@ def _mv_group(db: DB, src: str, dest: str) -> None:
     if dest_stripped.startswith(src + "/"):
         sys.exit(f"Cannot move '{src}' into its own subdirectory")
     group = db.pop(src, force=True)
-    db.put(dest_stripped, group)
+    db.put(dest_stripped, group, keep_empty=True)
 
 
 def _mv_entry(db: DB, src: str, dest: str, force: bool) -> None:
@@ -1200,10 +1307,12 @@ def _mv_entry(db: DB, src: str, dest: str, force: bool) -> None:
         newname = f"{dest_stripped}/{entry_name}" if dest_stripped else entry_name
     else:
         newname = dest
+    if is_group(db.get(src)) and newname.startswith(src + "/"):
+        sys.exit(f"Cannot move '{src}' into its own subdirectory")
     if db.get(newname) is not None:
         confirm(f"Overwrite {newname}?", force)
     entry = db.pop(src, force=True)
-    db.put(newname, entry)
+    db.put(newname, entry, keep_empty=True)
 
 
 @cli.command(short_help="Move or rename entries.")
@@ -1216,23 +1325,27 @@ def mv(obj: Obj, source: tuple[str, ...], dest: str, force: bool) -> None:
     db: DB = obj["_db"]
     db.read(lock=True)
 
-    if len(source) > 1:
-        if not _is_group_dest(db, dest):
-            sys.exit(f"{dest} is not a group")
-        for name in source:
-            if db.get(name) is None:
-                sys.exit(f"{name} not found")
-            _mv_entry(db, name, dest, force)
-    else:
-        src = source[0].rstrip("/")
-        src_node = db.get(src)
+    pending = DB(path=None)
+    pending.db = deepcopy(db.db)
+    group_dest = _is_group_dest(pending, dest)
+    if len(source) > 1 and not group_dest:
+        sys.exit(f"{dest} is not a group")
+    for name in source:
+        src = name.rstrip("/")
+        if not split_path(src):
+            sys.exit("Cannot move the whole database")
+        src_node = pending.get(src)
         if src_node is None:
             sys.exit(f"{src} not found")
-        if is_group(src_node):
-            _mv_group(db, src, dest)
+        if not isinstance(src_node, dict):
+            sys.exit(f"{src} is not an entry or group")
+        if len(source) == 1 and is_group(src_node):
+            _mv_group(pending, src, dest)
         else:
-            _mv_entry(db, src, dest, force)
+            target = dest.rstrip("/") + "/" if group_dest else dest
+            _mv_entry(pending, src, target, force)
 
+    db.db = pending.db
     db.write(obj["gpg_id"])
 
 

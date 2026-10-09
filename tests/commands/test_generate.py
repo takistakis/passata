@@ -227,6 +227,17 @@ def test_generate_passphrase_file_not_found(tmp_path: Path) -> None:
         )
 
 
+def test_generate_rejects_oversized_entropy() -> None:
+    with pytest.raises(SystemExit, match="Requested entropy is too large"):
+        passata.generate_password(
+            length=None,
+            entropy=1e308,
+            charset="digits",
+            wordlist=None,
+            force=True,
+        )
+
+
 def test_generate_passphrase_file_removed_after_resolve(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

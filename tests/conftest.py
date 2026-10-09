@@ -29,6 +29,12 @@ import passata
 
 
 @pytest.fixture(autouse=True)
+def isolated_lock_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep writer locks out of the user's state directory."""
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
+
+@pytest.fixture(autouse=True)
 def no_schedule_clear_clipboard(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prevent background clipboard-clearing processes from spawning during tests.
 

@@ -17,11 +17,13 @@
 
 """Tests for passata mv."""
 
+from copy import deepcopy
 from textwrap import dedent
 
 import click
 import pytest
 
+import passata
 from passata import Path
 from tests.helpers import read, run
 
@@ -225,3 +227,110 @@ def test_mv_entries_to_root(nested_db: Path) -> None:
     assert "twitter:" in content
     # social group should be gone (both children removed)
     assert "social" not in content
+
+
+@pytest.mark.parametrize("source", ["/", "", "internet/github/password"])
+def test_mv_rejects_non_node_sources(db: Path, source: str) -> None:
+    original = read(db)
+    result = run(["mv", "--force", source, "new"])
+
+    assert result.exit_code == 1
+    assert (
+        "Cannot move the whole database" in result.output
+        or "is not an entry or group" in result.output
+    )
+    assert read(db) == original
+
+
+@pytest.mark.parametrize("dest", ["/invalid/", "invalid//group/"])
+def test_mv_validates_group_destination_before_changes(db: Path, dest: str) -> None:
+    original = read(db)
+    result = run(["mv", "--force", "internet/reddit", dest])
+
+    assert result.exit_code == 1
+    assert result.output == f"Invalid path: {dest}\n"
+    assert read(db) == original
+
+
+def test_mv_multiple_groups_rejects_own_subdirectory(nested_db: Path) -> None:
+    original = read(nested_db)
+    result = run(["mv", "--force", "server", "internet", "internet/new/"])
+
+    assert result.exit_code == 1
+    assert "Cannot move 'internet' into its own subdirectory" in result.output
+    assert read(nested_db) == original
+
+
+def test_mv_trailing_slashes_on_multiple_sources(nested_db: Path) -> None:
+    result = run(
+        ["mv", "--force", "internet/social/", "internet/github/", "new/"],
+    )
+
+    assert result.exit_code == 0
+    assert result.exception is None
+    content = nested_db.read_text()
+    assert "internet:" not in content
+    assert "  social:" in content
+    assert "  github:" in content
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_mv_late_failure_or_cancellation_preserves_memory(
+    db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    cancelled: bool,
+) -> None:
+    database = passata.DB(db)
+    database.read()
+    original = deepcopy(database.db)
+    monkeypatch.setattr(database, "read", lambda **_: None)
+    sources = (
+        ("internet/reddit", "internet/github")
+        if cancelled
+        else ("internet/reddit", "missing")
+    )
+    monkeypatch.setattr(click, "confirm", lambda _: False)
+    with (
+        click.Context(passata.cli, obj={"_db": database, "gpg_id": "unused"}) as ctx,
+        pytest.raises(SystemExit) as error,
+    ):
+        ctx.invoke(
+            passata.mv,
+            source=sources,
+            dest="internet",
+            force=not cancelled,
+        )
+    assert error.value.code == (0 if cancelled else "missing not found")
+    assert database.db == original
+
+
+@pytest.mark.parametrize("multiple", [False, True])
+def test_mv_preserves_empty_groups(db: Path, multiple: bool) -> None:
+    with db.open("a") as file:
+        file.write("empty: {}\n")
+    args = (
+        ["mv", "--force", "empty", "internet/github", "new/"]
+        if multiple
+        else ["mv", "--force", "empty", "renamed"]
+    )
+    result = run(args)
+
+    assert result.exit_code == 0
+    assert result.exception is None
+    database = passata.DB(db)
+    database.read()
+    assert database.get("new/empty" if multiple else "renamed") == {}
+    assert database.get("empty") is None
+
+
+def test_mv_empty_group_overwrites_destination(db: Path) -> None:
+    with db.open("a") as file:
+        file.write("empty: {}\nnew:\n  empty:\n    password: original\n")
+    result = run(["mv", "--force", "empty", "internet/github", "new/"])
+
+    assert result.exit_code == 0
+    database = passata.DB(db)
+    database.read()
+    assert database.get("new/empty") == {}
+    assert database.get("new/github") is not None
+    assert database.get("empty") is None
