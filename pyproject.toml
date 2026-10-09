@@ -34,7 +34,8 @@ ignore = [
     "FBT001",  # boolean-type-hint-positional-argument
     "FBT002",  # boolean-default-value-positional-argument
     "COM812",  # missing-trailing-comma
-    "PLR0913"  # too-many-arguments
+    "PLR0913", # too-many-arguments
+    "PLR0917"  # too-many-positional-arguments
 ]
 
 [tool.ruff.lint.per-file-ignores]
