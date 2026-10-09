@@ -18,6 +18,8 @@
 import subprocess
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from passata import call
 
 
@@ -62,3 +64,17 @@ def test_call_exits_on_filenotfound() -> None:
     ):
         call(["notarealcommand"])
         mock_exit.assert_called_once_with("Executable 'notarealcommand' not found")
+
+
+def test_call_reports_subprocess_stderr() -> None:
+    error = subprocess.CalledProcessError(
+        2,
+        ["gpg"],
+        stderr="gpg: encryption failed: No public key\n",
+    )
+    with (
+        patch("subprocess.run", side_effect=error) as mock_run,
+        pytest.raises(SystemExit, match="gpg: encryption failed: No public key"),
+    ):
+        call(["gpg"])
+    assert mock_run.call_args.kwargs["stderr"] == subprocess.PIPE

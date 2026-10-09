@@ -23,6 +23,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from passata import DB, is_entry, split_path
+from tests.helpers import run
 
 
 def test_is_entry_empty_dict() -> None:
@@ -167,6 +168,16 @@ class TestValidate:
         ):
             db.validate()
 
+    @pytest.mark.parametrize("key", [1, True, None])
+    @pytest.mark.parametrize("nested", [False, True])
+    def test_validate_non_string_group_key(self, key: object, nested: bool) -> None:
+        structure = {key: {"password": "pass"}}
+        db = self.make_db_with_structure(
+            {"group": structure} if nested else structure,  # type: ignore[arg-type]
+        )
+        with pytest.raises(SystemExit, match="Database contains a non-string key"):
+            db.validate()
+
 
 class TestWrite:
     """Test the write method of the DB class."""
@@ -223,7 +234,35 @@ class TestWrite:
         db.write("gpg_id")
         assert db.registered_post_write_hook is True
 
-        # Change db content so the write is not skipped at line 353
+        # Change db content so the write is not skipped.
         db.db["group"]["entry"]["password"] = "changed"  # noqa: S105
-        db.write("gpg_id")  # hook already registered, should not re-register
+        db.write("gpg_id")
         assert db.registered_post_write_hook is True
+
+
+@pytest.mark.parametrize("contents", ["password: [unclosed", "---\n{}\n---\n{}\n"])
+def test_read_reports_invalid_yaml(db: Path, contents: str) -> None:
+    db.write_text(contents)
+    result = run(["show"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert result.output.startswith("Invalid database YAML:")
+
+
+@pytest.mark.parametrize("contents", ["- scalar\n", "null\n", "entry: scalar\n"])
+def test_read_reports_invalid_database_shape(db: Path, contents: str) -> None:
+    db.write_text(contents)
+    result = run(["show"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert "not a dict" in result.output
+
+
+def test_read_comment_only_database_is_empty(db: Path) -> None:
+    db.write_text("# empty database\n")
+    result = run(["ls"])
+
+    assert result.exit_code == 0
+    assert result.output == ""

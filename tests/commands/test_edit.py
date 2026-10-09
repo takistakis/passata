@@ -148,7 +148,6 @@ def test_edit_delete_entry(
             password: rdt
             username: sakis
     """)
-    passata.unlock_file(db)
     # Confirm
     monkeypatch.setattr(click, "confirm", lambda _: True)
     result = run(["edit", "internet/reddit"])
@@ -266,7 +265,6 @@ def test_edit_delete_database(
     assert result.exit_code == 0
     assert result.exception is None
     assert read(db) == original
-    passata.unlock_file(db)
     # Confirm
     monkeypatch.setattr(click, "confirm", lambda _: True)
     result = run(["edit"])
@@ -450,3 +448,42 @@ def test_edit_on_modified_ignores_empty_data(
     monkeypatch.setattr(click, "edit", mock_editor)
     result = run(["edit", "internet/github"])
     assert result.exit_code == 0
+
+
+@pytest.mark.parametrize(
+    "updated",
+    ["- not an entry\n", "password: changed\nnested: {}\n"],
+)
+def test_edit_rejects_invalid_database_shapes(
+    db: Path,
+    editor: Callable,
+    updated: str,
+) -> None:
+    original = db.read_text()
+    editor(updated=updated)
+    result = run(["edit", "internet/github"])
+    assert result.exit_code == 1
+    assert db.read_text() == original
+
+
+def test_edit_reconciles_revert_after_live_save(
+    db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observer = MockObserver()
+    monkeypatch.setattr(watchdog.observers, "Observer", lambda: observer)
+    original = db.read_text()
+
+    def mock_editor(filename: str, editor: str) -> None:
+        assert observer.handler is not None
+        path = Path(filename)
+        text = path.read_text()
+        path.write_text("password: changed\n")
+        observer.handler.on_modified(watchdog.events.FileModifiedEvent(filename))
+        assert "changed" in db.read_text()
+        path.write_text(text)
+
+    monkeypatch.setattr(click, "edit", mock_editor)
+    result = run(["edit", "internet/github"])
+    assert result.exit_code == 0
+    assert db.read_text() == original
