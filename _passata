@@ -141,7 +141,7 @@ _passata() {
 
 # Print every path in the database, one per line.
 _passata_paths() {
-  passata ${opt_args[--config]:+--config ${(Q)opt_args[--config]}} \
+  passata-rs ${opt_args[--config]:+--config ${(Q)opt_args[--config]}} \
     find "" --no-tree 2>/dev/null
 }
 
