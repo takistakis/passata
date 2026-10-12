@@ -24,6 +24,7 @@ from __future__ import annotations
 import atexit
 import errno
 import fcntl
+import json
 import math
 import os
 import random
@@ -36,7 +37,7 @@ import tempfile
 import time
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TextIO
+from typing import TYPE_CHECKING, Any, NoReturn, TextIO
 
 import click
 import watchdog.events
@@ -136,7 +137,7 @@ def send_notification(message: str) -> None:
     call(command)
 
 
-def die(message: str) -> None:
+def die(message: str) -> NoReturn:
     """Send a notification with the given message and exit."""
     send_notification(message)
     sys.exit(1)
@@ -1350,24 +1351,211 @@ def mv(obj: Obj, source: tuple[str, ...], dest: str, force: bool) -> None:
 
 
 # Autotype
+MACOS_AUTOTYPE_SCRIPT = """
+ObjC.import('Foundation');
+const input = $.NSFileHandle.fileHandleWithStandardInput.readDataToEndOfFile;
+const data = JSON.parse(ObjC.unwrap(
+    $.NSString.alloc.initWithDataEncoding(input, $.NSUTF8StringEncoding)));
+const events = Application('System Events');
+function frontWindow() {
+    const processes = events.applicationProcesses.whose({frontmost: true})();
+    if (!processes.length || !processes[0].windows().length)
+        throw new Error('No accessible active window');
+    const process = processes[0];
+    return [String(process.unixId()), process.windows[0].name()];
+}
+function checkWindow() {
+    const current = frontWindow();
+    if (current[0] !== data.window[0] || current[1] !== data.window[1])
+        throw new Error('Window has changed');
+}
+"""
+
+MACOS_KEY_CODES = {
+    "Tab": 48,
+    "Return": 36,
+    "Enter": 76,
+    "Escape": 53,
+    "BackSpace": 51,
+    "Delete": 117,
+    "space": 49,
+    "Left": 123,
+    "Right": 124,
+    "Down": 125,
+    "Up": 126,
+    "Home": 115,
+    "End": 119,
+    "Page_Up": 116,
+    "Page_Down": 121,
+}
+
+MACOS_MODIFIERS = {
+    "shift": "shift down",
+    "ctrl": "control down",
+    "control": "control down",
+    "alt": "option down",
+    "option": "option down",
+    "cmd": "command down",
+    "command": "command down",
+    "super": "command down",
+}
+
+
+def macos_autotype(script: str, data: dict[str, Any]) -> str:
+    """Run fixed macOS automation code, passing its data through stdin."""
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/osascript",
+                "-l",
+                "JavaScript",
+                "-e",
+                MACOS_AUTOTYPE_SCRIPT + script,
+            ],
+            input=json.dumps(data),
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        detail = (e.stderr or "").strip()
+        if "-25211" in detail or "not allowed assistive access" in detail:
+            sys.exit(
+                "macOS denied Accessibility access for autotype. In System "
+                "Settings > Privacy & Security, open Device Control and Data "
+                "Access (macOS 27) or Accessibility (older macOS), and switch on "
+                "the app running the shortcut (often WorkflowServiceRunner for "
+                "an Automator Quick Action, which may already be listed but "
+                "off; Automator when testing there). Access for Terminal or "
+                "the target app is not enough. Quit the runner and retry the "
+                "shortcut. See MACOS-AUTOTYPE.md, section 2.",
+            )
+        if "-1743" in detail:
+            sys.exit(
+                "macOS denied Automation access for autotype. In System "
+                "Settings > Privacy & Security > Automation, allow the app "
+                "running the shortcut to control System Events, then retry. "
+                "See MACOS-AUTOTYPE.md, section 2.",
+            )
+        detail = detail or f"osascript exited with status {e.returncode}"
+        sys.exit(f"macOS autotype failed: {detail}")
+    except FileNotFoundError:
+        sys.exit("Executable 'osascript' not found")
+    else:
+        return result.stdout.strip()
+
+
 def active_window() -> tuple[str, str]:  # pragma: no cover
     """Get active window id and name."""
+    if sys.platform == "darwin":
+        window = json.loads(macos_autotype("JSON.stringify(frontWindow());", {}))
+        if (
+            not isinstance(window, list)
+            or len(window) != 2  # noqa: PLR2004
+            or not all(isinstance(item, str) for item in window)
+        ):
+            die("Invalid active window response")
+        return window[0], window[1]
+
     window_id = out(["xdotool", "getactivewindow"])
     window_name = out(["xdotool", "getwindowname", window_id])
     return window_id, window_name
 
 
-def keyboard(key: str, entry: Entry, delay: str) -> None:
-    """Simulate keyboard input for `key` using xdotool."""
+def macos_key(key: str) -> tuple[str | int, list[str]]:
+    """Translate a sequence key and modifiers into System Events input."""
+    if key == "+" or key.endswith("++"):
+        *modifiers, _ = key[:-1].split("+")
+        name = "+"
+    else:
+        *modifiers, name = key.split("+")
+    if any(modifier.lower() not in MACOS_MODIFIERS for modifier in modifiers):
+        die(f"Unsupported macOS key: {key}")
+    if name not in MACOS_KEY_CODES and len(name) != 1:
+        die(f"Unsupported macOS key: {key}")
+    return MACOS_KEY_CODES.get(name, name), [
+        MACOS_MODIFIERS[modifier.lower()] for modifier in modifiers
+    ]
+
+
+def macos_choose_entry(choices: list[str], window: tuple[str, str]) -> str | None:
+    """Choose an entry in a native dialog and return focus to the target app."""
+    selected = macos_autotype(
+        """
+const app = Application.currentApplication();
+app.includeStandardAdditions = true;
+const choice = app.chooseFromList(data.choices, {
+    withTitle: 'passata', withPrompt: 'Choose an entry to autotype:',
+    multipleSelectionsAllowed: false, emptySelectionAllowed: false
+});
+if (choice !== false) {
+    const targets = events.applicationProcesses.whose({
+        unixId: Number(data.window[0])
+    })();
+    if (!targets.length) throw new Error('Target application has closed');
+    targets[0].frontmost = true;
+    delay(0.2);
+    checkWindow();
+}
+JSON.stringify(choice === false ? null : choice[0]);
+""",
+        {"choices": choices, "window": window},
+    )
+    choice = json.loads(selected)
+    if choice is not None and not isinstance(choice, str):
+        die("Invalid entry selection response")
+    return choice
+
+
+def keyboard(
+    key: str,
+    entry: Entry,
+    delay: int,
+    window: tuple[str, str] | None = None,
+) -> None:
+    """Simulate keyboard input using the platform's autotype backend."""
     if key[0] == "<" and key[-1] == ">":
         value = entry.get(key[1:-1])
         if not value:
             die(f"{key[1:-1]} not found")
         # `value` could be an int so we explicitly convert it to str
-        call(["xdotool", "type", "--clearmodifiers", "--delay", delay, str(value)])
+        if sys.platform == "darwin":
+            macos_autotype(
+                """
+for (const character of data.text) {
+    checkWindow();
+    events.keystroke(character);
+    delay(data.delay / 1000);
+}
+""",
+                {"text": str(value), "delay": delay, "window": window},
+            )
+        else:
+            call(
+                [
+                    "xdotool",
+                    "type",
+                    "--clearmodifiers",
+                    "--delay",
+                    str(delay),
+                    str(value),
+                ],
+            )
     elif key[0] == "!":
         duration = float(key[1:])
         time.sleep(duration)
+    elif sys.platform == "darwin":
+        value, modifiers = macos_key(key)
+        macos_autotype(
+            """
+checkWindow();
+if (typeof data.key === 'number')
+    events.keyCode(data.key, {using: data.modifiers});
+else
+    events.keystroke(data.key, {using: data.modifiers});
+""",
+            {"key": value, "modifiers": modifiers, "window": window},
+        )
     else:
         call(["xdotool", "key", key])
 
@@ -1389,16 +1577,53 @@ def get_autotype_keys(entry: Entry) -> list[str]:
     return data.split()
 
 
+def choose_autotype_entry(
+    names: list[str],
+    matches: list[str],
+    window: tuple[str, str],
+    menu: str | list[str] | None,
+) -> str | None:
+    """Choose a matching entry using the platform default or a custom menu."""
+    if not names:
+        die("No entries to autotype")
+    if len(matches) == 1:
+        return matches[0].strip()
+    if sys.platform == "darwin" and menu is None:
+        return macos_choose_entry(sorted(matches or names), window)
+    menu = menu if menu is not None else "dmenu"
+    command = shlex.split(menu) if isinstance(menu, str) else menu
+    choices = "\n".join(sorted(matches or names))
+    return out(command, input_=choices).strip()
+
+
 @cli.command()
 @click.option("-s", "--sequence", help="Autotype sequence.")
-@click.option("-d", "--delay", default="50", help="Delay between keystrokes in ms.")
-@click.option("-m", "--menu", default="dmenu", help="dmenu provider command.")
+@click.option(
+    "-d",
+    "--delay",
+    default=50,
+    type=click.IntRange(min=0),
+    help="Delay between keystrokes in ms.",
+)
+@click.option(
+    "-m",
+    "--menu",
+    default=None,
+    help="Menu provider command (default: dmenu on Linux, native dialog on macOS).",
+)
 @click.pass_obj
-def autotype(obj: Obj, sequence: str, delay: str, menu: str | list[str]) -> None:
+def autotype(
+    obj: Obj,
+    sequence: str,
+    delay: int,
+    menu: str | list[str] | None,
+) -> None:
     """Type login credentials."""
     db: DB = obj["_db"]
+    # Pinentry must not become the target while decrypting on macOS.
+    window = active_window() if sys.platform == "darwin" else None
     db.read()
-    window = active_window()
+    window = window or active_window()
     title = window[1].lower()
 
     # Put the entries that match the window title in `matches`, and every entry
@@ -1412,20 +1637,21 @@ def autotype(obj: Obj, sequence: str, delay: str, menu: str | list[str]) -> None
         if any(keyword in title for keyword in keywords):
             matches.append(path)
 
-    if len(matches) == 1:
-        choice = matches[0].strip()
-    else:
-        command = shlex.split(menu) if isinstance(menu, str) else menu
-        choices = "\n".join(sorted(matches or names))
-        choice = out(command, input_=choices).strip()
-
+    choice = choose_autotype_entry(names, matches, window, menu)
+    if choice is None:
+        return
     entry = db.get(choice)
-    assert entry is not None
+    if entry is None:
+        die("No valid entry selected")
     keys = sequence.split() if sequence else get_autotype_keys(entry)
+    if sys.platform == "darwin":
+        for key in keys:
+            if not key.startswith(("<", "!")):
+                macos_key(key)
     for key in keys:
         if active_window() != window:  # pragma: no cover
             die("Window has changed")
-        keyboard(key, entry, delay)
+        keyboard(key, entry, delay, window)
 
 
 if __name__ == "__main__":  # pragma: no cover

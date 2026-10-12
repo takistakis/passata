@@ -5,7 +5,7 @@ A simple password manager, inspired by [pass] for Linux and macOS.
 Supports a subset of pass's commands and options and unlike pass, all
 passwords are stored in a single (gpg encrypted) file. It also has the
 [keepassx]-like ability to automatically type passwords based on the
-active window's title. Autotyping currently only works on Linux.
+active window's title. Autotyping works on Linux and macOS.
 
 ## Installation
 
@@ -13,7 +13,10 @@ Requirements:
 
 - Python 3.10 or newer
 - Python libraries: click, PyYAML, watchdog
-- Software: gpg, xdotool, dmenu, libnotify, xsel
+- Software: gpg; on Linux, xdotool, dmenu, libnotify, xsel
+- macOS autotype uses built-in osascript/System Events and requires
+  Accessibility and Automation permissions. See the
+  [macOS autotype guide](MACOS-AUTOTYPE.md).
 
 For example for Arch Linux run:
 
@@ -132,19 +135,22 @@ database respectively. The post-write hook runs once at command completion,
 after output and clipboard handling, while the writer lock is still held.
 They can be used for syncing the database.
 
-## Autotype (Linux only)
+## Autotype
 
 By running `passata autotype`, passata tries to find the entry that
 matches the active window's title. Specifically it looks for entries
 whose name or any string in the `keywords` field, is included in the
 title (case insensitive). If there are zero or more than one such
-entries, the user is prompted to choose the right one using dmenu (or
-any other menu command given with `--menu`). Finally the sequence that
-is specified in the `autotype` field of the chosen entry is typed using
-xdotool.
+entries, the user is prompted to choose the right one using dmenu on
+Linux or a native selection dialog on macOS (or any other menu command
+given with `--menu`). Finally the sequence specified in the `autotype`
+field of the chosen entry is typed using xdotool on Linux or System
+Events on macOS.
 
 This is supposed to be used by adding a keybinding for `passata
-autotype` to your window manager's configuration.
+autotype` to your window manager's configuration. On macOS, use a
+background shortcut or Automator Quick Action; see the
+[setup and troubleshooting guide](MACOS-AUTOTYPE.md).
 
 The `keywords` field can contain a string or list of strings.
 
@@ -152,8 +158,9 @@ The `autotype` field supports the following items:
 
 - `<field>`: Types the contents of the given field of the entry (e.g.
   `<username>`).
-- `Key`: Sends the specified keystroke (e.g. `Tab`, `Return`). See `man
-  xdotool` for more information.
+- `Key`: Sends the specified keystroke (e.g. `Tab`, `Return`). On Linux,
+  see `man xdotool`; on macOS, see the supported keys and modifiers in
+  the [macOS guide](MACOS-AUTOTYPE.md).
 - `!time`: Sleeps for the given time (e.g. `!0.5`). Can be used to wait
   for the next page to load for services like gmail, where the username
   and password forms are on different pages.
