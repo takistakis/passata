@@ -33,6 +33,13 @@ pip3 install --break-system-packages --upgrade --user click pyyaml watchdog
 Install passata itself by running `sudo make install`, which also
 installs the wordlists and the zsh completion script.
 
+To install the Rust version instead, run `make install-rust` (with elevated
+permissions if required). This builds the release binary and installs it as
+`/usr/local/bin/passata`, replacing the Python executable, with the same
+wordlists and zsh completion script. It requires Rust 1.85 or newer, Cargo,
+and the GPGME development libraries. Both install targets support overriding
+the destination, for example `make install-rust PREFIX="$HOME/.local"`.
+
 ## Zsh completion
 
 On macOS, the zsh completion of the passata entries, doesn't work with
