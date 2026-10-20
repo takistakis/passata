@@ -33,6 +33,7 @@ import string
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from copy import deepcopy
 from pathlib import Path
@@ -1366,10 +1367,36 @@ def keyboard(key: str, entry: Entry, delay: str) -> None:
         # `value` could be an int so we explicitly convert it to str
         call(["xdotool", "type", "--clearmodifiers", "--delay", delay, str(value)])
     elif key[0] == "!":
-        duration = float(key[1:])
-        time.sleep(duration)
+        time.sleep(sleep_duration(key))
     else:
-        call(["xdotool", "key", key])
+        # Release modifiers still held from the hotkey that started autotype.
+        call(["xdotool", "key", "--clearmodifiers", key])
+
+
+def sleep_duration(key: str) -> float:
+    """Parse the duration of a `!seconds` autotype item."""
+    try:
+        duration = float(key[1:])
+    except ValueError:
+        duration = math.nan
+
+    if not math.isfinite(duration) or duration < 0 or duration > threading.TIMEOUT_MAX:
+        die(f"Invalid sleep duration: {key}")
+
+    return duration
+
+
+def validate_autotype_keys(keys: list[str], entry: Entry) -> None:
+    """Check fields and pauses before typing anything.
+
+    This way a typo can't leave a half-typed login behind.
+    """
+    for key in keys:
+        if key[0] == "<" and key[-1] == ">":
+            if not entry.get(key[1:-1]):
+                die(f"{key[1:-1]} not found")
+        elif key[0] == "!":
+            sleep_duration(key)
 
 
 def get_autotype_keys(entry: Entry) -> list[str]:
@@ -1384,7 +1411,8 @@ def get_autotype_keys(entry: Entry) -> list[str]:
         else:
             die("Don't know what to type :(")
 
-    assert isinstance(data, str)
+    if not isinstance(data, str):
+        die("Invalid autotype field")
 
     return data.split()
 
@@ -1422,6 +1450,7 @@ def autotype(obj: Obj, sequence: str, delay: str, menu: str | list[str]) -> None
     entry = db.get(choice)
     assert entry is not None
     keys = sequence.split() if sequence else get_autotype_keys(entry)
+    validate_autotype_keys(keys, entry)
     for key in keys:
         if active_window() != window:  # pragma: no cover
             die("Window has changed")
