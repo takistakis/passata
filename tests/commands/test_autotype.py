@@ -73,9 +73,9 @@ def test_autotype(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.exception is None
     assert result.output == (
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'takis']\n"
-        "['xdotool', 'key', 'Tab']\n"
+        "['xdotool', 'key', '--clearmodifiers', 'Tab']\n"
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'gh']\n"
-        "['xdotool', 'key', 'Return']\n"
+        "['xdotool', 'key', '--clearmodifiers', 'Return']\n"
     )
 
 
@@ -91,7 +91,7 @@ def test_autotype_no_username(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.exception is None
     assert result.output == (
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'pass1']\n"
-        "['xdotool', 'key', 'Return']\n"
+        "['xdotool', 'key', '--clearmodifiers', 'Return']\n"
     )
 
 
@@ -112,7 +112,7 @@ def test_autotype_keywords_simple(
     assert result.exception is None
     assert result.output == (
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'pass2']\n"
-        "['xdotool', 'key', 'Return']\n"
+        "['xdotool', 'key', '--clearmodifiers', 'Return']\n"
     )
 
 
@@ -159,10 +159,10 @@ def test_autotype_keywords_complex(
         "internet/github\n"
         "\n"
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'user3']\n"
-        "['xdotool', 'key', 'Return']\n"
+        "['xdotool', 'key', '--clearmodifiers', 'Return']\n"
         "Sleeping for 1.5\n"
         "['xdotool', 'type', '--clearmodifiers', '--delay', '50', 'pass3']\n"
-        "['xdotool', 'key', 'Return']\n"
+        "['xdotool', 'key', '--clearmodifiers', 'Return']\n"
     )
 
 
@@ -181,6 +181,36 @@ def test_autotype_invalid(
     result = run(["autotype"])
 
     assert isinstance(result.exception, SystemExit)
+
+
+@pytest.mark.usefixtures("db")
+@pytest.mark.parametrize(
+    "sequence",
+    [
+        "<username> Tab <missing>",
+        "<username> !-1",
+        "<username> !soon",
+        "<username> !nan",
+        "<username> !1e100",
+    ],
+)
+def test_autotype_prevalidates_sequence(
+    sequence: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(passata, "active_window", lambda: ("123", "GitHub"))
+    monkeypatch.setattr(passata, "send_notification", lambda _: None)
+    typed: list[str] = []
+    monkeypatch.setattr(passata, "keyboard", lambda key, *_: typed.append(key))
+    result = run(["autotype", "--sequence", sequence])
+    assert isinstance(result.exception, SystemExit)
+    assert typed == []
+
+
+def test_get_autotype_keys_invalid_field(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(passata, "send_notification", lambda _: None)
+    with pytest.raises(SystemExit):
+        passata.get_autotype_keys({"password": "pass", "autotype": 5})
 
 
 def test_macos_script_stdin(monkeypatch: pytest.MonkeyPatch) -> None:
