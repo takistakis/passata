@@ -13,13 +13,21 @@ Requirements:
 
 - Python 3.10 or newer
 - Python libraries: click, PyYAML, watchdog
-- Software: gpg, xdotool, dmenu, libnotify, xsel
+- Software: gpg; on Linux, xdotool, dmenu, libnotify, and either xsel
+  (X11) or wl-clipboard (Wayland)
 
 For example for Arch Linux run:
 
 ```bash
 pacman -S python-click python-yaml python-watchdog gnupg xdotool dmenu libnotify xsel
 ```
+
+For Wayland, install `wl-clipboard` instead of `xsel` (or install both
+if you switch between sessions). Passata automatically prefers `wl-copy`
+when `WAYLAND_DISPLAY` is nonempty or `XDG_SESSION_TYPE=wayland`,
+including under XWayland. Clipboard timeouts work on both display
+servers; `--timeout 0` leaves the clipboard unchanged until it is
+replaced.
 
 On macOS:
 

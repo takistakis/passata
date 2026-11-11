@@ -209,13 +209,26 @@ def unlock_file(lock: TextIO) -> None:
             lock.close()
 
 
+def wayland_session() -> bool:
+    """Detect Wayland, including sessions that also expose an XWayland display."""
+    return bool(os.environ.get("WAYLAND_DISPLAY")) or (
+        os.environ.get("XDG_SESSION_TYPE") == "wayland"
+    )
+
+
 def schedule_clear_clipboard(timeout: int) -> None:
     """Clear clipboard after timeout seconds using a detached background process."""
+    if sys.platform == "darwin":
+        clear = "pbcopy"
+    elif wayland_session():
+        clear = "wl-copy --clear"
+    else:
+        clear = "xsel -c -b"
+
     subprocess.Popen(
-        ["/bin/sh", "-c", f"sleep {timeout} && printf '' | pbcopy"],
+        ["/bin/sh", "-c", f"sleep {timeout} && printf '' | {clear}"],
         start_new_session=True,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
     )
 
 
@@ -224,14 +237,16 @@ def to_clipboard(data: str, timeout: int) -> None:
 
     If `timeout` is 0, the clipboard is not cleared.
     """
-    command = (
-        ["pbcopy"]
-        if sys.platform == "darwin"
-        else ["xsel", "-i", "-b", "-t", str(timeout * 1000)]
-    )
+    if sys.platform == "darwin":
+        command = ["pbcopy"]
+    elif wayland_session():
+        command = ["wl-copy"]
+    else:
+        command = ["xsel", "-i", "-b"]
+
     call(command, input_=data)
 
-    if sys.platform == "darwin" and timeout > 0:
+    if timeout > 0:
         schedule_clear_clipboard(timeout)
 
 

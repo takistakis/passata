@@ -270,7 +270,10 @@ def patch(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     # Clear the clipboard before and after the test
     if sys.platform == "darwin":
         input_ = ""
-        command = ["pbcopy", "w"]
+        command = ["pbcopy"]
+    elif passata.wayland_session():
+        input_ = ""
+        command = ["wl-copy"]
     else:
         input_ = None
         command = ["xsel", "-c", "-b"]
