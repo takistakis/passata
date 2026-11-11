@@ -37,6 +37,11 @@ def run(args: Sequence[str], input_: str | None = None) -> Result:
 
 
 def clipboard() -> str:
-    command = ["pbpaste"] if sys.platform == "darwin" else ["xsel", "-o", "-b"]
+    if sys.platform == "darwin":
+        command = ["pbpaste"]
+    elif passata.wayland_session():
+        command = ["wl-paste", "--no-newline"]
+    else:
+        command = ["xsel", "-o", "-b"]
     time.sleep(0.1)
     return passata.out(command)
