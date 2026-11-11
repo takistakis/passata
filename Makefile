@@ -1,8 +1,15 @@
 PREFIX = /usr/local
 
-install:
+install: install-data
 	install -d $(PREFIX)/bin
 	install -C -m 755 passata.py $(PREFIX)/bin/passata
+
+install-rust: install-data
+	cargo build --release --locked --manifest-path passata-rs/Cargo.toml --target-dir passata-rs/target
+	install -d $(PREFIX)/bin
+	install -C -m 755 passata-rs/target/release/passata-rs $(PREFIX)/bin/passata
+
+install-data:
 	install -d $(PREFIX)/share/passata
 	install -C -m 644 wordlists/*.txt $(PREFIX)/share/passata/
 	install -d $(PREFIX)/share/zsh/site-functions
@@ -21,4 +28,4 @@ test:
 	coverage html
 	mypy passata.py tests/ --disallow-untyped-defs
 
-.PHONY: install uninstall test
+.PHONY: install install-rust install-data uninstall test
