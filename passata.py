@@ -37,7 +37,7 @@ import threading
 import time
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TextIO
+from typing import TYPE_CHECKING, Any, NoReturn, TextIO
 
 import click
 import watchdog.events
@@ -137,7 +137,7 @@ def send_notification(message: str) -> None:
     call(command)
 
 
-def die(message: str) -> None:
+def die(message: str) -> NoReturn:
     """Send a notification with the given message and exit."""
     send_notification(message)
     sys.exit(1)
