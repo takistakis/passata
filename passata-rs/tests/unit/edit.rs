@@ -1,6 +1,6 @@
 use yaml_rust::{Yaml, YamlLoader};
 
-use super::{apply_edit, final_content_is_unsaved, parse_edit_yaml};
+use super::{SnapshotTracker, apply_edit, final_content_is_unsaved, parse_edit_yaml};
 use crate::cli;
 use crate::database::Database;
 
@@ -26,6 +26,19 @@ fn final_reconciliation_detects_a_revert_after_a_live_save() {
     let live_edit = "# entry\npassword: new\n";
     assert!(!final_content_is_unsaved(original, original));
     assert!(final_content_is_unsaved(live_edit, original));
+}
+
+#[test]
+fn live_updates_wait_for_a_stable_snapshot_and_ignore_repeats() {
+    let mut snapshots = SnapshotTracker::new("# entry\npassword: old\n");
+    let partial = "# entry\npassword: new\n";
+    assert!(!snapshots.should_process(partial));
+    assert!(snapshots.should_process(partial));
+    assert!(!snapshots.should_process(partial));
+
+    let completed = "# entry\npassword: newer\n";
+    assert!(!snapshots.should_process(completed));
+    assert!(snapshots.should_process(completed));
 }
 
 #[test]

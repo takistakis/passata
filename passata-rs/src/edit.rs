@@ -147,9 +147,36 @@ fn final_content_is_unsaved(last_saved: &str, updated: &str) -> bool {
     updated != last_saved
 }
 
+struct SnapshotTracker {
+    last_observed: String,
+    last_attempted: String,
+}
+
+impl SnapshotTracker {
+    fn new(initial: &str) -> Self {
+        Self {
+            last_observed: initial.to_owned(),
+            last_attempted: initial.to_owned(),
+        }
+    }
+
+    fn should_process(&mut self, updated: &str) -> bool {
+        // Require two matching polls, and don't repeatedly parse stable invalid or empty content.
+        if updated != self.last_observed {
+            self.last_observed = updated.to_owned();
+            return false;
+        }
+        if updated == self.last_attempted {
+            return false;
+        }
+        self.last_attempted = updated.to_owned();
+        true
+    }
+}
+
 fn observe_file(
     path: &Path,
-    last_observed: &mut String,
+    snapshots: &mut SnapshotTracker,
     last_saved: &mut String,
     name: Option<&str>,
     db: &mut Database,
@@ -161,11 +188,10 @@ fn observe_file(
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
         Err(error) => return Err(format!("Couldn't read temporary edit file: {}", error)),
     };
-    if updated == *last_observed {
+    if !snapshots.should_process(&updated) {
         return Ok(false);
     }
     let parsed = parse_edit_yaml(&updated);
-    *last_observed = updated;
     let Ok(value) = parsed else {
         eprintln!("Invalid yaml, changes not saved");
         return Ok(false);
@@ -174,7 +200,7 @@ fn observe_file(
         return Ok(false);
     }
     save_edit(db, name, value, gpg_id, hooks)?;
-    last_saved.clone_from(last_observed);
+    last_saved.clone_from(&updated);
     Ok(true)
 }
 
@@ -192,7 +218,7 @@ fn wait_for_editor(
     initial_text: &str,
     context: &mut EditorContext<'_>,
 ) -> Result<std::process::ExitStatus, String> {
-    let mut last_observed = initial_text.to_owned();
+    let mut snapshots = SnapshotTracker::new(initial_text);
     let mut last_saved = initial_text.to_owned();
     loop {
         if let Some(status) = child
@@ -220,7 +246,7 @@ fn wait_for_editor(
         }
         if let Err(error) = observe_file(
             context.path,
-            &mut last_observed,
+            &mut snapshots,
             &mut last_saved,
             context.name,
             context.db,
