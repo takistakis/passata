@@ -1144,6 +1144,22 @@ def generate(
         click.echo("Copied generated password to clipboard.")
 
 
+def _stable_file_content(path: str, previous: str | None) -> str | None:
+    # Editors may truncate and rewrite the file; only return a settled snapshot.
+    try:
+        updated = Path(path).read_text()
+    except FileNotFoundError:
+        return None
+    if updated == previous:
+        return None
+    time.sleep(0.1)
+    try:
+        stable = Path(path).read_text()
+    except FileNotFoundError:
+        return None
+    return stable if stable == updated else None
+
+
 @cli.command()
 @click.argument("name", required=False)
 @editor_option
@@ -1181,13 +1197,13 @@ def edit(obj: Obj, name: str | None, editor: str) -> None:  # noqa: C901
                 case_sensitive=False,
             )
 
-        def on_modified(self, event: watchdog.events.FileSystemEvent) -> None:
-            src_path = os.fsdecode(event.src_path)
+        def on_change(self, path: str | bytes) -> None:
+            src_path = os.fsdecode(path)
             if self.path != src_path:
                 return
 
-            updated = Path(src_path).read_text()
-            if updated == self.last_content:
+            updated = _stable_file_content(src_path, self.last_content)
+            if updated is None:
                 return
 
             self.last_content = updated
@@ -1208,6 +1224,16 @@ def edit(obj: Obj, name: str | None, editor: str) -> None:  # noqa: C901
                 click.echo(f"{error}, changes not saved", err=True)
                 return
             self.last_saved = updated
+
+        def on_modified(self, event: watchdog.events.FileSystemEvent) -> None:
+            self.on_change(event.src_path)
+
+        def on_created(self, event: watchdog.events.FileSystemEvent) -> None:
+            self.on_change(event.src_path)
+
+        def on_moved(self, event: watchdog.events.FileSystemEvent) -> None:
+            # Atomic-save editors replace the target by moving a new file into place.
+            self.on_change(getattr(event, "dest_path", event.src_path))
 
     db: DB = obj["_db"]
     db.read(lock=True)
