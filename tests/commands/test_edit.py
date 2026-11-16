@@ -18,6 +18,7 @@
 """Tests for passata edit."""
 
 # ruff: noqa: ARG001
+import time
 from collections.abc import Callable
 from pathlib import Path
 from textwrap import dedent
@@ -347,6 +348,84 @@ def test_edit_on_modified_saves_changes(
             password: rdt
             username: sakis
     """)
+
+
+def test_edit_live_save_is_visible_before_editor_exits(
+    db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def mock_editor(filename: str, editor: str) -> None:
+        Path(filename).write_text("password: live-save\n")
+        deadline = time.monotonic() + 5
+        while "password: live-save" not in db.read_text():
+            if time.monotonic() >= deadline:
+                pytest.fail("live edit was not saved before the editor exited")
+            time.sleep(0.01)
+
+    monkeypatch.setattr(click, "edit", mock_editor)
+    result = run(["edit", "internet/github"])
+
+    assert result.exit_code == 0
+
+
+def test_edit_on_atomic_replace_saves_changes(
+    db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_observer = MockObserver()
+    monkeypatch.setattr(watchdog.observers, "Observer", lambda: mock_observer)
+
+    def mock_editor(filename: str, editor: str) -> None:
+        assert mock_observer.handler is not None
+        path = Path(filename)
+        replacement = path.with_name("replacement.tmp")
+        replacement.write_text("password: atomic-save\n")
+        replacement.replace(path)
+        mock_observer.handler.dispatch(
+            watchdog.events.FileMovedEvent(str(replacement), filename),
+        )
+        assert "password: atomic-save" in read(db)
+
+    monkeypatch.setattr(click, "edit", mock_editor)
+    result = run(["edit", "internet/github"])
+    assert result.exit_code == 0
+    assert "password: atomic-save" in read(db)
+
+
+def test_edit_waits_for_stable_contents_before_saving(
+    db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_observer = MockObserver()
+    monkeypatch.setattr(watchdog.observers, "Observer", lambda: mock_observer)
+    path: Path | None = None
+    replace_during_debounce = True
+
+    def debounce(delay: float) -> None:
+        nonlocal replace_during_debounce
+        assert delay == 0.1
+        if replace_during_debounce:
+            assert path is not None
+            path.write_text("password: completed\n")
+            replace_during_debounce = False
+
+    monkeypatch.setattr(passata.time, "sleep", debounce)
+
+    def mock_editor(filename: str, editor: str) -> None:
+        assert mock_observer.handler is not None
+        nonlocal path
+        path = Path(filename)
+        path.write_text("password: transient\n")
+        mock_observer.handler.on_modified(watchdog.events.FileModifiedEvent(filename))
+        assert "password: gh" in read(db)
+
+        mock_observer.handler.on_modified(watchdog.events.FileModifiedEvent(filename))
+        assert "password: completed" in read(db)
+
+    monkeypatch.setattr(click, "edit", mock_editor)
+    result = run(["edit", "internet/github"])
+    assert result.exit_code == 0
+    assert "password: completed" in read(db)
 
 
 def test_edit_on_modified_ignores_different_path(
