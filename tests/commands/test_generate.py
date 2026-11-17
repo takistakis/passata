@@ -19,8 +19,6 @@
 
 import os
 import string
-import sys
-from collections.abc import Generator
 from pathlib import Path
 from textwrap import dedent
 from unittest.mock import Mock
@@ -257,7 +255,7 @@ def test_generate_passphrase_file_removed_after_resolve(
 
 
 @pytest.fixture
-def patch(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+def patch(monkeypatch: pytest.MonkeyPatch) -> None:
     # NOTE: The following monkeypatch eats the "Generated
     # password with x bits of entropy" message.
     monkeypatch.setattr(
@@ -266,23 +264,6 @@ def patch(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
         lambda length, *_, **__: length * "x",
     )
     monkeypatch.setattr(click, "pause", lambda: print("Press any key to continue ..."))
-
-    # Clear the clipboard before and after the test
-    if sys.platform == "darwin":
-        input_ = ""
-        command = ["pbcopy"]
-    elif passata.wayland_session():
-        input_ = ""
-        command = ["wl-copy"]
-    else:
-        input_ = None
-        command = ["xsel", "-c", "-b"]
-
-    passata.out(command, input_=input_)
-
-    yield
-
-    passata.out(command, input_=input_)
 
 
 def assert_password_in_output(result: Result) -> None:

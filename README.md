@@ -13,21 +13,27 @@ Requirements:
 
 - Python 3.10 or newer
 - Python libraries: click, PyYAML, watchdog
-- Software: gpg; on Linux, xdotool, dmenu, libnotify, and either xsel
-  (X11) or wl-clipboard (Wayland)
+- Software shared by both Linux display servers: gpg and libnotify
 
-For example for Arch Linux run:
+For Arch Linux, install the shared packages and the packages for your
+display server:
 
 ```bash
-pacman -S python-click python-yaml python-watchdog gnupg xdotool dmenu libnotify xsel
+pacman -S python-click python-yaml python-watchdog gnupg libnotify
+# X11: autotype, menu, and clipboard
+pacman -S xdotool dmenu xsel
+# Wayland: autotype, native menu, and clipboard
+pacman -S wtype bemenu wl-clipboard
 ```
 
-For Wayland, install `wl-clipboard` instead of `xsel` (or install both
-if you switch between sessions). Passata automatically prefers `wl-copy`
-when `WAYLAND_DISPLAY` is nonempty or `XDG_SESSION_TYPE=wayland`,
-including under XWayland. Clipboard timeouts work on both display
-servers; `--timeout 0` leaves the clipboard unchanged until it is
-replaced.
+If you switch between X11 and Wayland, install both sets. Passata uses
+`xsel` for X11 clipboard management and prefers `wl-copy` from
+`wl-clipboard` when `WAYLAND_DISPLAY` is nonempty or
+`XDG_SESSION_TYPE=wayland`, including under XWayland. Clipboard timeouts
+work on both display servers; `--timeout 0` leaves the clipboard
+unchanged until it is replaced. On Wayland, run
+`passata autotype --menu bemenu` to use bemenu instead of the default
+`dmenu`.
 
 On macOS:
 
@@ -133,6 +139,15 @@ default values of the options of the command with that name:
     generate:
       length: 30
       wordlist: eff_large_wordlist
+    autotype:
+      window_manager: auto
+
+`autotype.window_manager` can be `auto` (the default), `x11`, `sway`,
+`hyprland`, or `none`. `auto` uses X11 outside Wayland, detects Sway and
+Hyprland in Wayland sessions, and otherwise skips title matching so the
+menu offers all entries. `none` always uses the menu. The setting can
+also be overridden for a single run with
+`passata autotype --window-manager sway`.
 
 If `~/.passata/hooks/pre-read` or `~/.passata/hooks/post-write` exist
 and are executable, they are run before reading and after writing the
@@ -142,14 +157,20 @@ They can be used for syncing the database.
 
 ## Autotype (Linux only)
 
-By running `passata autotype`, passata tries to find the entry that
-matches the active window's title. Specifically it looks for entries
-whose name or any string in the `keywords` field, is included in the
-title (case insensitive). If there are zero or more than one such
-entries, the user is prompted to choose the right one using dmenu (or
-any other menu command given with `--menu`). Finally the sequence that
-is specified in the `autotype` field of the chosen entry is typed using
-xdotool.
+On X11, `passata autotype` tries to find the entry that matches the
+active window's title. Specifically it looks for entries whose name or
+any string in the `keywords` field is included in the title (case
+insensitive). If there are zero or more than one such entries, the user
+is prompted to choose the right one using dmenu (or any other menu
+command given with `--menu`). The sequence in the chosen entry's
+`autotype` field is typed using xdotool.
+
+On Wayland, window titles aren't available through a
+compositor-independent interface. The `autotype.window_manager` setting
+can select Sway or Hyprland title lookup; other compositors use the menu
+to choose an entry. Typing uses wtype, which requires a compositor that
+supports the virtual-keyboard protocol. Use `--menu` to select a
+Wayland-native menu command if needed.
 
 This is supposed to be used by adding a keybinding for
 `passata autotype` to your window manager's configuration.
@@ -161,7 +182,7 @@ The `autotype` field supports the following items:
 - `<field>`: Types the contents of the given field of the entry (e.g.
   `<username>`).
 - `Key`: Sends the specified keystroke (e.g. `Tab`, `Return`). See
-  `man xdotool` for more information.
+  `man xdotool` or `man wtype` for more information.
 - `!time`: Sleeps for the given time (e.g. `!0.5`). Can be used to wait
   for the next page to load for services like gmail, where the username
   and password forms are on different pages.

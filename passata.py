@@ -24,6 +24,7 @@ from __future__ import annotations
 import atexit
 import errno
 import fcntl
+import json
 import math
 import os
 import random
@@ -1390,26 +1391,83 @@ def mv(obj: Obj, source: tuple[str, ...], dest: str, force: bool) -> None:
 
 
 # Autotype
-def active_window() -> tuple[str, str]:  # pragma: no cover
-    """Get active window id and name."""
-    window_id = out(["xdotool", "getactivewindow"])
-    window_name = out(["xdotool", "getwindowname", window_id])
-    return window_id, window_name
+def focused_sway_window(node: object) -> tuple[str, str] | None:
+    """Find the focused Sway window in a tree returned by swaymsg."""
+    if not isinstance(node, dict):
+        return None
+
+    if node.get("focused") and node.get("type") == "con" and node.get("id") is not None:
+        name = node.get("name")
+        return str(node["id"]), name if isinstance(name, str) else ""
+
+    for key in ("nodes", "floating_nodes"):
+        children = node.get(key)
+        if isinstance(children, list):
+            for child in children:
+                window = focused_sway_window(child)
+                if window is not None:
+                    return window
+
+    return None
+
+
+def active_window(window_manager: str) -> tuple[str, str]:  # pragma: no cover
+    """Get the active window id and title using the selected window manager."""
+    if window_manager == "auto":
+        if not wayland_session():
+            window_manager = "x11"
+        elif os.environ.get("SWAYSOCK"):
+            window_manager = "sway"
+        elif os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+            window_manager = "hyprland"
+        else:
+            window_manager = "none"
+
+    if window_manager == "x11":
+        window_id = out(["xdotool", "getactivewindow"])
+        window_name = out(["xdotool", "getwindowname", window_id])
+        return window_id, window_name
+
+    if window_manager == "sway":
+        tree = json.loads(out(["swaymsg", "-t", "get_tree"]))
+        return focused_sway_window(tree) or ("", "")
+
+    if window_manager == "hyprland":
+        window = json.loads(out(["hyprctl", "activewindow", "-j"]))
+        if not isinstance(window, dict):
+            die("Invalid active window data from Hyprland")
+        address = window.get("address", "")
+        title = window.get("title", "")
+        return (
+            address if isinstance(address, str) else "",
+            title if isinstance(title, str) else "",
+        )
+
+    return "", ""
 
 
 def keyboard(key: str, entry: Entry, delay: str) -> None:
-    """Simulate keyboard input for `key` using xdotool."""
+    """Simulate keyboard input for `key`."""
+    command = ["wtype"] if wayland_session() else ["xdotool"]
     if key[0] == "<" and key[-1] == ">":
         value = entry.get(key[1:-1])
         if not value:
             die(f"{key[1:-1]} not found")
         # `value` could be an int so we explicitly convert it to str
-        call(["xdotool", "type", "--clearmodifiers", "--delay", delay, str(value)])
+        if wayland_session():
+            command.extend(["-d", delay, str(value)])
+        else:
+            command.extend(["type", "--clearmodifiers", "--delay", delay, str(value)])
+        call(command)
     elif key[0] == "!":
         time.sleep(sleep_duration(key))
     else:
         # Release modifiers still held from the hotkey that started autotype.
-        call(["xdotool", "key", "--clearmodifiers", key])
+        if wayland_session():
+            command.extend(["-k", key])
+        else:
+            command.extend(["key", "--clearmodifiers", key])
+        call(command)
 
 
 def sleep_duration(key: str) -> float:
@@ -1460,12 +1518,24 @@ def get_autotype_keys(entry: Entry) -> list[str]:
 @click.option("-s", "--sequence", help="Autotype sequence.")
 @click.option("-d", "--delay", default="50", help="Delay between keystrokes in ms.")
 @click.option("-m", "--menu", default="dmenu", help="dmenu provider command.")
+@click.option(
+    "--window-manager",
+    type=click.Choice(["auto", "x11", "sway", "hyprland", "none"]),
+    default="auto",
+    help="Window title source (default: auto).",
+)
 @click.pass_obj
-def autotype(obj: Obj, sequence: str, delay: str, menu: str | list[str]) -> None:
+def autotype(
+    obj: Obj,
+    sequence: str,
+    delay: str,
+    menu: str | list[str],
+    window_manager: str,
+) -> None:
     """Type login credentials."""
     db: DB = obj["_db"]
     db.read()
-    window = active_window()
+    window = active_window(window_manager)
     title = window[1].lower()
 
     # Put the entries that match the window title in `matches`, and every entry
@@ -1476,7 +1546,7 @@ def autotype(obj: Obj, sequence: str, delay: str, menu: str | list[str]) -> None
         names.append(path)
         entryname = split_path(path)[-1]
         keywords = [entryname.lower(), *db.keywords(path)]
-        if any(keyword in title for keyword in keywords):
+        if title and any(keyword in title for keyword in keywords):
             matches.append(path)
 
     if len(matches) == 1:
@@ -1491,7 +1561,7 @@ def autotype(obj: Obj, sequence: str, delay: str, menu: str | list[str]) -> None
     keys = sequence.split() if sequence else get_autotype_keys(entry)
     validate_autotype_keys(keys, entry)
     for key in keys:
-        if active_window() != window:  # pragma: no cover
+        if window[0] and active_window(window_manager) != window:  # pragma: no cover
             die("Window has changed")
         keyboard(key, entry, delay)
 

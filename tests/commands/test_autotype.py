@@ -18,6 +18,7 @@
 """Tests for passata autotype."""
 
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
@@ -56,7 +57,8 @@ def test_get_autotype_keys(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.usefixtures("db")
 def test_autotype(monkeypatch: pytest.MonkeyPatch) -> None:
     window_title = "GitHub: The world's leading blah blah blah"
-    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
+    monkeypatch.setattr(passata, "wayland_session", lambda: False)
+    monkeypatch.setattr(passata, "active_window", lambda *_: (0, window_title))
     monkeypatch.setattr(passata, "call", print)
 
     result = run(["autotype"])
@@ -71,9 +73,79 @@ def test_autotype(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("db")
+def test_autotype_wayland(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
+    monkeypatch.delenv("SWAYSOCK", raising=False)
+    monkeypatch.delenv("HYPRLAND_INSTANCE_SIGNATURE", raising=False)
+    monkeypatch.setattr(passata, "call", print)
+
+    def fake_out(command: list[str], input_: str | None = None) -> str:
+        assert command == ["dmenu"]
+        assert input_ == "internet/github\ninternet/reddit"
+        return "internet/github"
+
+    monkeypatch.setattr(passata, "out", fake_out)
+
+    result = run(["autotype"])
+
+    assert result.exception is None
+    assert result.output == (
+        "['wtype', '-d', '50', 'takis']\n"
+        "['wtype', '-k', 'Tab']\n"
+        "['wtype', '-d', '50', 'gh']\n"
+        "['wtype', '-k', 'Return']\n"
+    )
+
+
+@pytest.mark.usefixtures("db")
+@pytest.mark.parametrize(
+    ("window_manager", "window_output"),
+    [
+        ("sway", '{"nodes":[{"focused":true,"type":"con","id":123,"name":"GitHub"}]}'),
+        ("hyprland", '{"address":"0x123","title":"GitHub"}'),
+    ],
+)
+def test_autotype_window_manager_config(
+    monkeypatch: pytest.MonkeyPatch,
+    db: Path,
+    window_manager: str,
+    window_output: str,
+) -> None:
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
+    config_path = db.with_name("config.yml")
+    config_path.write_text(
+        config_path.read_text() + f"autotype:\n  window_manager: {window_manager}\n",
+    )
+    command = (
+        ["swaymsg", "-t", "get_tree"]
+        if window_manager == "sway"
+        else ["hyprctl", "activewindow", "-j"]
+    )
+
+    def fake_out(actual_command: list[str], input_: str | None = None) -> str:
+        assert actual_command == command
+        assert input_ is None
+        return window_output
+
+    monkeypatch.setattr(passata, "out", fake_out)
+    monkeypatch.setattr(passata, "call", print)
+
+    result = run(["autotype"])
+
+    assert result.exception is None
+    assert result.output == (
+        "['wtype', '-d', '50', 'takis']\n"
+        "['wtype', '-k', 'Tab']\n"
+        "['wtype', '-d', '50', 'gh']\n"
+        "['wtype', '-k', 'Return']\n"
+    )
+
+
+@pytest.mark.usefixtures("db")
 def test_autotype_no_username(monkeypatch: pytest.MonkeyPatch) -> None:
     window_title = "test1"
-    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
+    monkeypatch.setattr(passata, "wayland_session", lambda: False)
+    monkeypatch.setattr(passata, "active_window", lambda *_: (0, window_title))
     monkeypatch.setattr(passata, "call", print)
     run(["insert", "autotype/test1", "--password=pass1"])
 
@@ -92,7 +164,8 @@ def test_autotype_keywords_simple(
     editor: Callable[[str], None],
 ) -> None:
     window_title = "A website with the keyword in its title"
-    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
+    monkeypatch.setattr(passata, "wayland_session", lambda: False)
+    monkeypatch.setattr(passata, "active_window", lambda *_: (0, window_title))
     monkeypatch.setattr(passata, "call", print)
     # Add a new entry with a single string in keywords
     editor("password: pass2\nkeywords: the keyword\n")
@@ -113,7 +186,8 @@ def test_autotype_keywords_complex(
     editor: Callable[[str], None],
 ) -> None:
     window_title = "GitHub"
-    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
+    monkeypatch.setattr(passata, "wayland_session", lambda: False)
+    monkeypatch.setattr(passata, "active_window", lambda *_: (0, window_title))
     monkeypatch.setattr(passata, "call", print)
 
     # Add a new entry with an autotype field and a list of
@@ -163,7 +237,7 @@ def test_autotype_invalid(
     editor: Callable[[str], None],
 ) -> None:
     window_title = "test4"
-    monkeypatch.setattr(passata, "active_window", lambda: (0, window_title))
+    monkeypatch.setattr(passata, "active_window", lambda *_: (0, window_title))
     # Suppress notification
     monkeypatch.setattr(passata, "call", lambda _: None)
     editor("password: pass4\nautotype: <username> Tab <password> Return\n")
@@ -189,7 +263,7 @@ def test_autotype_prevalidates_sequence(
     sequence: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(passata, "active_window", lambda: ("123", "GitHub"))
+    monkeypatch.setattr(passata, "active_window", lambda *_: ("123", "GitHub"))
     monkeypatch.setattr(passata, "send_notification", lambda _: None)
     typed: list[str] = []
     monkeypatch.setattr(passata, "keyboard", lambda key, *_: typed.append(key))

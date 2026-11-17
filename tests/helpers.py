@@ -17,14 +17,16 @@
 
 """Helper functions for the passata test suite."""
 
-import sys
-import time
 from collections.abc import Sequence
 from pathlib import Path
+from unittest.mock import patch
 
 from click.testing import CliRunner, Result
 
 import passata
+
+_clipboard_content = [""]
+_to_clipboard = passata.to_clipboard
 
 
 def read(dbpath: Path) -> str:
@@ -32,16 +34,20 @@ def read(dbpath: Path) -> str:
 
 
 def run(args: Sequence[str], input_: str | None = None) -> Result:
+    _clipboard_content[0] = ""
     runner = CliRunner()
+
+    if passata.to_clipboard is _to_clipboard:
+
+        def capture_clipboard(data: str, timeout: int) -> None:
+            del timeout
+            _clipboard_content[0] = data
+
+        with patch.object(passata, "to_clipboard", capture_clipboard):
+            return runner.invoke(passata.cli, args, input_)
+
     return runner.invoke(passata.cli, args, input_)
 
 
 def clipboard() -> str:
-    if sys.platform == "darwin":
-        command = ["pbpaste"]
-    elif passata.wayland_session():
-        command = ["wl-paste", "--no-newline"]
-    else:
-        command = ["xsel", "-o", "-b"]
-    time.sleep(0.1)
-    return passata.out(command)
+    return _clipboard_content[0]
