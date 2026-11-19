@@ -17,10 +17,13 @@
 
 """Tests for passata ls."""
 
+from io import StringIO
 from textwrap import dedent
 
+import click
 import pytest
 
+import passata
 from tests.helpers import run
 
 
@@ -31,6 +34,13 @@ def test_ls_db() -> None:
     assert result.output == dedent("""\
         internet
     """)
+
+
+@pytest.mark.usefixtures("db")
+def test_ls_colors_groups() -> None:
+    result = run(["--color", "ls"])
+
+    assert result.output == "\x1b[94m\x1b[1minternet\x1b[0m\n"
 
 
 @pytest.mark.usefixtures("db")
@@ -49,6 +59,22 @@ def test_ls_nonexistent_group() -> None:
 
     assert isinstance(result.exception, SystemExit)
     assert result.output == "nonexistent not found\n"
+
+
+def test_ls_output_preserves_colors_on_a_tty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class TTYStringIO(StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    output = TTYStringIO()
+    monkeypatch.setattr(passata.sys, "stdout", output)
+
+    with click.Context(click.Command("test")):
+        passata.echo("\x1b[34minternet\x1b[0m")
+
+    assert output.getvalue() == "\x1b[34minternet\x1b[0m\n"
 
 
 # Tests for nested/filesystem-like paths

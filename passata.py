@@ -104,24 +104,28 @@ def out(command: list[str], input_: str | None = None) -> str:
 
 def echo(data: str) -> None:
     """Print data to stdout or via a pager if it doesn't fit on screen."""
-    # Bright blue key (color 12) and bright yellow colon (color 11).
-    # Colors are applied manually using ANSI escape codes because
-    # click.style does not support bright colors. The key ends at the
-    # first colon that is followed by either a space or a newline.
     data = re.sub(
         r"(^\s*.*?):(\s)",
-        r"\033[38;5;12m\1\033[38;5;11m:\033[0m\2",
+        lambda match: (
+            click.style(match.group(1), fg="bright_blue")
+            + click.style(":", fg="bright_yellow")
+            + match.group(2)
+        ),
         data,
         flags=re.MULTILINE,
     )
     data = re.sub(
         r"(^\s*-\s)",
-        r"\033[38;5;9m\1\033[0m",
+        lambda match: click.style(match.group(1), fg="bright_red"),
         data,
         flags=re.MULTILINE,
     )
     os.environ["LESS"] = os.environ.get("LESS", "FRX")
-    click.echo_via_pager(data)
+    ctx = click.get_current_context(silent=True)
+    color = ctx.color if ctx is not None else None
+    if color is None:
+        color = sys.stdout.isatty()
+    click.echo_via_pager(data, color=color)
 
 
 def send_notification(message: str) -> None:
@@ -533,7 +537,7 @@ class DB:
         """List the immediate children of the database or a group."""
         node = self._get_group(name)
         lines = [
-            click.style(key, fg="blue", bold=True) if is_group(value) else key
+            click.style(key, fg="bright_blue", bold=True) if is_group(value) else key
             for key, value in node.items()
         ]
         if lines:
@@ -580,7 +584,7 @@ class DB:
 
         lines: list[str] = []
         if root_label is not None:
-            lines.append(click.style(root_label, fg="blue", bold=True))
+            lines.append(click.style(root_label, fg="bright_blue", bold=True))
 
         items = list(node.items())
         for i, (key, value) in enumerate(items):
@@ -588,7 +592,7 @@ class DB:
             connector = "└── " if is_last else "├── "
 
             if is_group(value):
-                styled = click.style(key, fg="blue", bold=True)
+                styled = click.style(key, fg="bright_blue", bold=True)
                 lines.append(f"{prefix}{connector}{styled}")
                 extension = "    " if is_last else "│   "
                 lines.extend(

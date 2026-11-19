@@ -124,12 +124,12 @@ def test_show_color(editor: Callable) -> None:
 
     # Test show with color
     expected = dedent("""\
-        \033[38;5;12mgoogle\033[38;5;11m:\033[0m
-        \033[38;5;12m  username\033[38;5;11m:\033[0m user
-        \033[38;5;12m  password\033[38;5;11m:\033[0m pass
-        \033[38;5;12m  keywords\033[38;5;11m:\033[0m
-        \033[38;5;9m  - \033[0myoutube
-        \033[38;5;9m  - \033[0mgmail
+        \x1b[94mgoogle\x1b[0m\x1b[93m:\x1b[0m
+        \x1b[94m  username\x1b[0m\x1b[93m:\x1b[0m user
+        \x1b[94m  password\x1b[0m\x1b[93m:\x1b[0m pass
+        \x1b[94m  keywords\x1b[0m\x1b[93m:\x1b[0m
+        \x1b[91m  - \x1b[0myoutube
+        \x1b[91m  - \x1b[0mgmail
     """)
     result = run(["--color", "show", "group"])
     assert result.output == expected
